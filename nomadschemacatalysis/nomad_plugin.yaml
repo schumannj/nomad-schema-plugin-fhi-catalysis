@@ -1,0 +1,4 @@
+plugin_type: schema
+name: NOMAD's catalysis schema plugin
+description: |
+  This is a simple catalysis and reactivity schema.
