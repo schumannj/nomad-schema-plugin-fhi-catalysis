@@ -229,7 +229,7 @@ class CatalyticReactionData(ArchiveSection):
         {
             "label": "TOS vs. rate",
             'x': ['time_on_stream', 'runs'],
-            'y': ['rates/:/reaction_rate','rates/:/reaction_rate'],
+            'y': ['rates/:/reaction_rate', 'rates/:/reaction_rate'],
             'layout': {"showlegend": True,
                        'yaxis': {
                            "fixedrange": False}, 'xaxis': {

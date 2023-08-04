@@ -22,8 +22,7 @@ from nomad.datamodel.results import (Results, Material, Properties, Heterogeneou
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, Feed, Reagent, Conversion, Rates, Reactor_setup,
-    )
+    CatalyticReactionData, Feed, Reagent, Conversion, Rates, Reactor_setup)
 
 from nomad.datamodel.results import Product, Reactant
 
