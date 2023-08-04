@@ -2,6 +2,29 @@
 
 ## Getting started
 
+your nomad.yaml in your local installation should have this:
+```
+keycloak:
+  realm_name: fairdi_nomad_test
+north:
+  hub_connect_ip: '172.17.0.1'
+normalize:
+  normalizers:
+    include:
+      - MetainfoNormalizer
+plugins:
+    include:
+      - 'nomad-schema-plugin-fhi-catalysis/nomadschemacatalysis'
+    options:
+      nomad-schema-plugin-fhi-catalysis/nomadschemacatalysis:
+        python_package: nomadschemacatalysis
+```
+do not forget to export the package in the same terminal where you run NOMAD (nomad admin run appworker):
+
+`export PYTHONPATH="$PYTHONPATH:/your/path/nomad-to/nomad-schema-plugin-fhi-catalysis" `
+
+or to make this path persistent, write into the .pyenv/bin/activate file of your virtual env. Use the path of your local OS where you cloned this repo.
+
 ### Fork the project
 
 Go to the github project page https://github.com/nomad-coe/nomad-schema-plugin-example, hit
