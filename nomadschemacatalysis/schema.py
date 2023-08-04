@@ -1,28 +1,31 @@
-from nomad.metainfo import Quantity, Package
-from nomad.datamodel.metainfo.annotations import ELNAnnotation, ELNComponentEnum
-
 import numpy as np
 import os
-from nomad.units import ureg
+
+from ase.data import chemical_symbols
 
 from nomad.metainfo import (
     Quantity,
     Section,
-    SectionProxy,
     SubSection,
-    MSection, Package, Datetime)
+    Package)
 
 from nomad.datamodel.metainfo.eln import (
-    Substance,
-    Measurement,
-    ElnWithFormulaBaseSection)
+    System, Ensemble, Substance,
+    Measurement)
+
+# from nomad.datamodel.metainfo.basesections import SubstanceComponent
+
+from nomad.datamodel.data import ArchiveSection
 
 from nomad.datamodel.results import (Results, Material, Properties, HeterogeneousCatalysis,
                                      CatalystCharacterization, Reactivity)
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, Feed, Product, Reactant, Conversion, Rate)
+    CatalyticReactionData, Feed, Reagent, Conversion, Rates, Reactor_setup,
+    )
+
+from nomad.datamodel.results import Product, Reactant
 
 m_package = Package(name='catalysis')
 
@@ -51,26 +54,8 @@ def add_activity(archive):
         archive.results.properties.catalytic.reactivity = Reactivity()
 
 
-class CatalystSample(Substance, EntryData):
-    """
-    This schema is adapted to map the data of the clean Oxidation dataset (JACS,
-    https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
-    represent the instructions given to the user who manually curated the data.
-    """
-
-    m_def = Section(
-        label='Heterogeneous Catalysis - Catalyst Sample',
-        a_eln=dict(hide=['cas_uri', 'cas_number', 'cas_name', 'inchi', 'inchi_key',
-                         'smile', 'canonical_smile', 'cas_synonyms', 'molecular mass']),
-        categories=[UseCaseElnCategory],
-    )
-
-    surface_area = Quantity(
-        type=np.dtype(np.float64),
-        unit=("m**2/g"),
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='m**2/g',
-        ))
+class Preparation(ArchiveSection):
+    # m_def = Section(label_quantity=)
 
     preparation_method = Quantity(
         type=str,
@@ -90,7 +75,8 @@ class CatalystSample(Substance, EntryData):
         description="""
         person or persons preparing the sample in the lab
         """,
-        a_eln=dict(component='EnumEditQuantity')
+        a_eln=dict(component='EnumEditQuantity'),
+        repeats=True
     )
 
     preparing_institution = Quantity(
@@ -102,7 +88,67 @@ class CatalystSample(Substance, EntryData):
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
                          'Fritz-Haber-Institut Berlin / ISC']))
-        )
+    )
+
+    def normalize(self, archive, logger):
+        super(Preparation, self).normalize(archive, logger)
+
+        add_catalyst(archive)
+
+        if self.preparation_method is not None:
+            archive.results.properties.catalytic.catalyst_characterization.preparation_method = self.preparation_method
+
+
+class Surface_Area(ArchiveSection):
+    m_def = Section(label_quantity='method_surface_area_determination')
+
+    surfacearea = Quantity(
+        type=np.dtype(np.float64),
+        unit=("m**2/g"),
+        a_eln=dict(
+            component='NumberEditQuantity', defaultDisplayUnit='m**2/g')
+    )
+
+    method_surface_area_determination = Quantity(
+        type=str,
+        shape=[],
+        description="""
+          description of method to measure surface area
+          """,
+        a_eln=dict(
+            component='EnumEditQuantity', props=dict(
+                suggestions=['BET', 'H2-TPD', 'N2O-RFC',
+                             'Fourier Transform Infrared Spectroscopy (FTIR) of adsorbates',
+                             'unknown']))
+    )
+
+    def normalize(self, archive, logger):
+        super(Surface_Area, self).normalize(archive, logger)
+
+        add_catalyst(archive)
+
+        # if self.method_surface_area is not None:
+        archive.results.properties.catalytic.catalyst_characterization.surface_area = self.surfacearea
+        archive.results.properties.catalytic.catalyst_characterization.method_surface_area = self.method_surface_area_determination
+
+
+class CatalystSample(System, EntryData):
+    """
+    This schema is adapted to map the data of the clean Oxidation dataset (JACS,
+    https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
+    represent the instructions given to the user who manually curated the data.
+    """
+
+    m_def = Section(
+        label='Heterogeneous Catalysis - Catalyst Sample',
+        a_eln=dict(hide=['cas_uri', 'cas_number', 'cas_name', 'inchi', 'inchi_key',
+                         'smile', 'canonical_smile', 'cas_synonyms', 'molecular mass']),
+        categories=[UseCaseElnCategory],
+    )
+
+    preparation_details = SubSection(section_def=Preparation)
+
+    surface_area = SubSection(section_def=Surface_Area)
 
     storing_institution = Quantity(
         type=str,
@@ -112,8 +158,8 @@ class CatalystSample(Substance, EntryData):
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
-                         'Fritz-Haber-Institut Berlin / ISC']))
-        )
+                         'Fritz-Haber-Institut Berlin / ISC', 'TU Berlin / BasCat']))
+    )
 
     catalyst_type = Quantity(
         type=str,
@@ -123,8 +169,9 @@ class CatalystSample(Substance, EntryData):
           """,
         a_eln=dict(
             component='EnumEditQuantity', props=dict(
-                suggestions=['bulk catalyst', 'supported catalyst', 'model catalyst',
-                             'layered catalyst', 'other', 'unkown'])))
+                suggestions=['bulk catalyst', 'supported catalyst', 'single crystal',
+                             '2D catalyst', 'other', 'unkown'])),
+    )
 
     form = Quantity(
         type=str,
@@ -138,28 +185,51 @@ class CatalystSample(Substance, EntryData):
 
     def normalize(self, archive, logger):
         super(CatalystSample, self).normalize(archive, logger)
-        logger.info('CatalystSampleSection.normalize called')
 
         add_catalyst(archive)
 
-        if self.surface_area is not None:
-            archive.results.properties.catalytic.catalyst_characterization.surface_area = self.surface_area
         if self.catalyst_type is not None:
             archive.results.properties.catalytic.catalyst_characterization.catalyst_type = self.catalyst_type
-        if self.preparation_method is not None:
-            archive.results.properties.catalytic.catalyst_characterization.preparation_method = self.preparation_method
+        if self.surface_area is not None:
+            archive.results.properties.catalytic.catalyst_characterization.surface_area = self.surface_area.surfacearea
+            archive.results.properties.catalytic.catalyst_characterization.method_surface_area = self.surface_area.method_surface_area_determination
+        if self.preparation_details is not None:
+            archive.results.properties.catalytic.catalyst_characterization.preparation_method = self.preparation_details.preparation_method
 
 
-class CatalyticReaction(Measurement, EntryData):  # used to be MSection
-    """
-    This schema is adapted to map the data of the clean Oxidation dataset (JACS,
-    https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
-    represent the instructions given to the user who manually curated the data.
-    """
+class CatalyticReaction(EntryData):
 
     m_def = Section(
         label='Heterogeneous Catalysis - Activity Test',
         categories=[UseCaseElnCategory],
+        a_plot=[{
+            "label": "Selectivity [%]",
+            'x': 'reaction_data/runs',
+            'y': ['reaction_data/products/:/selectivity'],
+            'layout': {"showlegend": True,
+                       'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}},
+        {
+            "label": "Reaction Rates [mmol/g/hour]",
+            'x': 'runs',
+            'y': ['reaction_data/rates/:/reaction_rate'],
+            'layout': {"showlegend": True,
+                       'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}}]
+        # {
+        #     "label": "Conversion X [%]",
+        #     'x': 'runs',
+        #     'y': ['reaction_data/conversion/:/conversion_product_based'],
+        #     'layout': {"showlegend": True,
+        #                'yaxis': {
+        #                    "fixedrange": False}, 'xaxis': {
+        #                    "fixedrange": False}}, "config": {
+        #         "editable": True, "scrollZoom": True}},
+        # ]
     )
 
     sample_reference = Quantity(
@@ -187,8 +257,17 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
         a_eln=dict(
             component='EnumEditQuantity', props=dict(suggestions=[
                 'Alkane Oxidation', 'Oxidation of Ethane', 'Oxidation of Propane',
-                'Oxidation of Butane', 'Methanol Synthesis', 'Fischer-Tropsch',
+                'Oxidation of Butane', 'CO hydrogenation', 'Methanol Synthesis', 'Fischer-Tropsch',
                 'Water gas shift reaction', 'Ammonia Synthesis', 'Ammonia decomposition'])))
+
+    experiment_handbook = Quantity(
+        description="""
+        was the experiment performed according to a handbook
+        """,
+        type=str,
+        shape=[],
+        a_eln=dict(component='FileEditQuantity')
+    )
 
     institute = Quantity(
         type=str,
@@ -199,10 +278,10 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
                          'Fritz-Haber-Institut Berlin / ISC',
-                         'TU Berlin, BASCat', 'HZB','CATLAB']))
+                         'TU Berlin, BASCat', 'HZB', 'CATLAB']))
     )
 
-    experimentator = Quantity(
+    experimenter = Quantity(
         type=str,
         shape=[],
         description="""
@@ -211,31 +290,47 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
         a_eln=dict(component='EnumEditQuantity')
     )
 
-    mass = Quantity(
-        type=np.dtype(np.float64),
-        unit=("mg"),
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='mg'))
-
     data_file = Quantity(
         type=str,
+        description="""
+        excel or csv file that contains results of a catalytic measurement with
+        temperature, (pressure,) gas feed composition, yield, rates and selectivities
+        """,
         a_eln=dict(component='FileEditQuantity'),
         a_browser=dict(adaptor='RawFileAdaptor'))
 
+    # data_file_h5 = Quantity(
+    #     type=str,
+    #     description="""
+    #     excel or csv file that contains results of a catalytic measurement with
+    #     temperature, (pressure,) gas feed composition, yield, rates and selectivities
+    #     """,
+    #     a_eln=dict(component='FileEditQuantity'),
+    #     a_browser=dict(adaptor='RawFileAdaptor')
+    # )
+
+    reactor_setup = SubSection(section_def=Reactor_setup)
+
     feed = SubSection(section_def=Feed)
-    data = SubSection(section_def=CatalyticReactionData)
+    reaction_data = SubSection(section_def=CatalyticReactionData)
 
     measurement_details = SubSection(section_def=Measurement)
 
     def normalize(self, archive, logger):
         super(CatalyticReaction, self).normalize(archive, logger)
-        logger.info('CatalyticReaction.normalize called')
 
-        if not self.data_file or (os.path.splitext(
-                self.data_file)[-1] != ".csv" and os.path.splitext(
-                self.data_file)[-1] != ".xlsx"):
-            raise ValueError("Unsupported file format. Only xlsx and .csv files")
+        if (self.data_file is None):  # and (self.data_file_h5 is None):
             return
+
+        if ((self.data_file is not None) and (os.path.splitext(
+                self.data_file)[-1] != ".csv" and os.path.splitext(
+                self.data_file)[-1] != ".xlsx")):
+            raise ValueError("Unsupported file format. Only xlsx and .csv files")
+
+        # if (self.data_file_h5 is not None) and (os.path.splitext(
+        #         self.data_file)[-1] != ".h5"):
+        #     raise ValueError("Unsupported file format. This should be a hdf5 file ending with '.h5'" )
+        #     return
 
         if self.data_file.endswith(".csv"):
             with archive.m_context.raw_file(self.data_file) as f:
@@ -249,12 +344,14 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
         data.dropna(axis=1, how='all', inplace=True)
         feed = Feed()
         cat_data = CatalyticReactionData()
-        reactants = []
-        reactant_names = []
+        reagents = []
+        reagent_names = []
+        # reactants = []
+        # reactant_names = []
         products = []
         product_names = []
-        selectivities = []
         conversions = []
+        conversions2 = []
         conversion_names = []
         conversion_list = []
         rates = []
@@ -271,100 +368,97 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
                 number_of_runs = len(data[col])
 
             if col_split[0] == "x":
-                reactant = Reactant(name=col_split[1],
-                                    amount=data[col])
-                reactant_names.append(col_split[1])
-                reactants.append(reactant)
-            if col_split[0] == "temperature":
-                cat_data.temperature = data[col]
-                cat_data.temperature_max = max(data[col])
-                cat_data.temperature_min = min(data[col])
+                reagent = Reagent(name=col_split[1], gas_fraction=data[col])
+                reagent_names.append(col_split[1])
+                reagents.append(reagent)
+            if col_split[0] == "mass":
+                catalyst_mass_vector = data[col]
+                feed.catalyst_mass = catalyst_mass_vector[0]
 
-            if col_split[0] == "time":
+            if col_split[0] == "temperature":
+                cat_data.temperature = np.nan_to_num(data[col])
+
+            if col_split[0] == "TOS":
                 cat_data.time_on_stream = data[col]
 
             if col_split[0] == "C-balance":
-                cat_data.c_balance = data[col]
+                cat_data.c_balance = np.nan_to_num(data[col])
 
             if col_split[0] == "GHSV":
-                feed.space_velocity = data[col]
+                feed.space_velocity = np.nan_to_num(data[col])
+
+            if col_split[0] == "Vflow":
+                feed.flow_rates = np.nan_to_num(data[col])
+
+            if col_split[0] == "pressure":
+                cat_data.pressure = np.nan_to_num(data[col])
 
             if col_split[0] == "r":  # reaction rate
-                rate = Rate(name=col_split[1],
-                            reaction_rate=data[col])
-
-                rate.reaction_rate = data[col]
+                rate = Rates(name=col_split[1], reaction_rate=np.nan_to_num(data[col]))
+                # if col_split[1] in reagent_names:
+                #     reactant.reaction_rate = data[col]
+                # rate.reaction_rate = data[col]
                 rates.append(rate)
 
             if len(col_split) < 3 or col_split[2] != '(%)':
                 continue
 
             if col_split[0] == "x_p":  # conversion, based on product detection
-                conversion = Conversion(name=col_split[1],
-                                        conversion_product_based=data[col])
+                conversion = Conversion(name=col_split[1], conversion=np.nan_to_num(data[col]),
+                                        type='product-based conversion', conversion_product_based=np.nan_to_num(data[col]))
                 for i, p in enumerate(conversions):
                     if p.name == col_split[1]:
                         conversion = conversions.pop(i)
 
-                conversion.conversion_product_based = data[col]
+                conversion.conversion_product_based = np.nan_to_num(data[col])
 
                 conversion_names.append(col_split[1])
                 conversion_list.append(data[col])
                 conversions.append(conversion)
 
             if col_split[0] == "x_r":  # conversion, based on reactant detection
-                conversion = Conversion(name=col_split[1])
+                conversion2 = Reactant(name=col_split[1], conversion=np.nan_to_num(data[col]))
+
+                conversion = Conversion(name=col_split[1], conversion=np.nan_to_num(data[col]), type='reactant-based conversion', conversion_reactant_based = np.nan_to_num(data[col]))
                 for i, p in enumerate(conversions):
                     if p.name == col_split[1]:
                         conversion = conversions.pop(i)
-
                 conversion.conversion_reactant_based = data[col]
                 conversions.append(conversion)
 
+                conversions2.append(conversion2)
+
             if col_split[0] == "S_p":  # selectivity
-                product = Product(name=col_split[1])
-                for i, p in enumerate(products):
-                    if p.name == col_split[1]:
-                        product = products.pop(i)
-                        break
+                product = Product(name=col_split[1], selectivity=np.nan_to_num(data[col]))
+                # for i, p in enumerate(rates):
+                #     if p.name == col_split[1]:
+                #         rate = rates.pop(i)
+                #         product.reaction_rate=rate.reaction_rate
+                #         break
 
                 products.append(product)
-
-                product.selectivity = data[col]
                 product_names.append(col_split[1])
-                selectivities.append(data[col])
 
-        for p in products:
-            if p.selectivity is None or len(p.selectivity) == 0:
-                p.selectivity = number_of_runs * [0]
-
-        for c in conversions:
-            if c.conversion_product_based is None or len(c.conversion_product_based) == 0:
-                c.conversion_product_based = number_of_runs * [0]
-
-        feed.reactants = reactants
+        feed.reagents = reagents
         feed.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
         cat_data.products = products
         cat_data.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
-        cat_data.conversion = conversions
+        cat_data.reactants_conversions = conversions
         cat_data.rates = rates
-
         self.feed = feed
-        self.data = cat_data
+        self.reaction_data = cat_data
 
         add_activity(archive)
 
-        if feed.reactants is not None:
-            archive.results.properties.catalytic.reactivity.reactants = reactant_names
-            archive.results.properties.catalytic.reactivity.test_temperature_high = cat_data.temperature_max
-            archive.results.properties.catalytic.reactivity.test_temperature_low = cat_data.temperature_min
+        if conversions2 is not None:
+            archive.results.properties.catalytic.reactivity.reactants = conversions2
+        if cat_data.temperature is not None:
             archive.results.properties.catalytic.reactivity.test_temperatures = cat_data.temperature
-            # archive.results.properties.catalytic.activity.conversion='cat_data.conversion/0:1/conversion_product_based'
-            archive.results.properties.catalytic.reactivity.conversion_names = conversion_names
+        if cat_data.pressure is not None:
+            archive.results.properties.catalytic.reactivity.pressure = cat_data.pressure
         if products is not None:
-            archive.results.properties.catalytic.reactivity.products = product_names
-            # archive.results.properties.catalytic.activity.selectivity=selectivities
-        if self.reaction_name:
+            archive.results.properties.catalytic.reactivity.products = products
+        if self.reaction_name is not None:
             archive.results.properties.catalytic.reactivity.reaction_name = self.reaction_name
             archive.results.properties.catalytic.reactivity.reaction_class = self.reaction_class
 
@@ -372,36 +466,30 @@ class CatalyticReaction(Measurement, EntryData):  # used to be MSection
             if not archive.results.properties.catalytic.catalyst_characterization:
                 archive.results.properties.catalytic.catalyst_characterization = CatalystCharacterization()
 
-            if self.sample_reference.surface_area is not None:
-                archive.results.properties.catalytic.catalyst_characterization.surface_area = self.sample_reference.surface_area
             if self.sample_reference.catalyst_type is not None:
                 archive.results.properties.catalytic.catalyst_characterization.catalyst_type = self.sample_reference.catalyst_type
-            if self.sample_reference.preparation_method is not None:
-                archive.results.properties.catalytic.catalyst_characterization.preparation_method = self.sample_reference.preparation_method
+            if self.sample_reference.preparation_details is not None:
+                archive.results.properties.catalytic.catalyst_characterization.preparation_method = self.sample_reference.preparation_details.preparation_method
+            if self.sample_reference.surface_area is not None:
+                archive.results.properties.catalytic.catalyst_characterization.surface_area = self.sample_reference.surface_area.surfacearea
 
-        if self.sample_reference.molecular_formula is not None:
+        if self.sample_reference.elemental_composition is not None:
             if not archive.results:
                 archive.results = Results()
             if not archive.results.material:
                 archive.results.material = Material()
 
             try:
-                from nomad.atomutils import Formula
-                formula = Formula(self.sample_reference.molecular_formula)
-                formula.populate(archive.results.material)
-                # if not self.sample_reference.elemental_composition:
-                #     mass_fractions = formula.mass_fractions()
-                #     for element, fraction in formula.atomic_fractions().items():
-                #         self.sample_reference.elemental_composition.append(
-                #             ElementalComposition(
-                #                 element=element,
-                #                 atomic_fraction=fraction,
-                #                 mass_fraction=mass_fractions[element],
-                #             )
-                #         )
-            except Exception as e:
-                logger.warn('Could not analyse chemical formula.', exc_info=e)
+                archive.results.material.elemental_composition = self.sample_reference.elemental_composition
+                if self.sample_reference.elemental_composition.element not in chemical_symbols:
+                    logger.warn(
+                        f"'{self.sample_reference.elemental_composition.element}' is not a valid element symbol and this "
+                        "elemental_composition section will be ignored.")
+                elif self.sample_reference.elemental_composition.element not in archive.results.material.elements:
+                    archive.results.material.elements += [self.sample_reference.elemental_composition.element]
 
+            except Exception as e:
+                logger.warn('Could not analyse elemental compostion.', exc_info=e)
 
 
 m_package.__init_metainfo__()
