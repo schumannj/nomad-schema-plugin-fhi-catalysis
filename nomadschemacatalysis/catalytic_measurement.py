@@ -18,16 +18,19 @@
 
 import numpy as np
 
-from nomad.metainfo import (Quantity, SubSection, Section)
+from nomad.metainfo import (Quantity, SubSection, Section, MSection)
 from nomad.datamodel.data import ArchiveSection
 
 
 class Reagent(ArchiveSection):
     m_def = Section(label_quantity='name', description='a chemical substance present in the initial reaction mixture')
     name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'), description="reagent name")
-    gas_fraction = Quantity(
-        type=np.dtype(np.float64), shape=['*'],
-        description='volumetric fraction of reactant in feed, in %')
+    gas_concentration_in = Quantity(
+        type=np.float64, shape=['*'],
+        description='Volumetric fraction of reactant in feed.')
+    flow_rate = Quantity(
+        type=np.float64, shape=['*'], unit='mL/minutes',
+        description='Flow rate of reactant in feed.')
 
 
 class Conversion(ArchiveSection):
@@ -36,9 +39,9 @@ class Conversion(ArchiveSection):
     reference = Quantity(type=Reagent, a_eln=dict(component='ReferenceEditQuantity'))
     type = Quantity(type=str, a_eln=dict(component='StringEditQuantity', props=dict(
         suggestions=['product_based', 'reactant_based', 'unknown'])))
-    conversion = Quantity(type=np.dtype(np.float64), shape=['*'])
-    conversion_product_based = Quantity(type=np.dtype(np.float64), shape=['*'])
-    conversion_reactant_based = Quantity(type=np.dtype(np.float64), shape=['*'])
+    conversion = Quantity(type=np.float64, shape=['*'])
+    conversion_product_based = Quantity(type=np.float64, shape=['*'])
+    conversion_reactant_based = Quantity(type=np.float64, shape=['*'])
 
 
 class Reactant(Reagent):
@@ -51,7 +54,7 @@ class Feed(ArchiveSection):
     m_def = Section(a_plot=[
         {
             "title": "Feed",
-            "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_fraction'],
+            "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_concentration_in'],
             'layout': {"showlegend": True,
                        'yaxis': {
                            "fixedrange": False}, 'xaxis': {
@@ -59,68 +62,96 @@ class Feed(ArchiveSection):
                 "editable": True, "scrollZoom": True}}])
 
     space_velocity = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='1/hour')
+        type=np.float64, shape=['*'], unit='1/hour', a_eln=dict(component='NumberEditQuantity'))
 
     set_pressure = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='bar')
+        type=np.float64, shape=['*'], unit='bar', a_eln=dict(component='NumberEditQuantity'))
+    
+    set_temperature = Quantity(
+        type=np.float64, shape=['*'], unit='K', a_eln=dict(component='NumberEditQuantity'))
 
-    flow_rates = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='mL/minutes')
+    flow_rates_total = Quantity(
+        type=np.float64, shape=['*'], unit='mL/minutes', a_eln=dict(component='NumberEditQuantity'))
 
     catalyst_mass = Quantity(
-        type=np.dtype(np.float64), shape=[], unit='g')
+        type=np.float64, shape=[], unit='g', a_eln=dict(component='NumberEditQuantity'))
 
-    runs = Quantity(type=np.dtype(np.float64), shape=['*'])
+    runs = Quantity(type=np.float64, shape=['*'])
 
-    sampling_frequency = Quantity(type=np.dtype(np.float64), shape=[],
-                                  description='duration of a single run')
+    sampling_frequency = Quantity(
+        type=np.float64, shape=[], unit='Hz',
+        description='The number of runs per time.',
+        a_eln=dict(component='NumberEditQuantity'))
 
     reagents = SubSection(section_def=Reagent, repeats=True)
 
+
+class Pretreatment(Feed):
+    m_def = Section(a_plot=[{
+        "title": "Temperature",
+        "label": "Temperature", 'x': 'runs', 'y': ['set_temperature'],
+        'layout': {"showlegend": True,
+                   'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}},
+        {
+        "title": "Pretreatment Feed",
+        "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_concentration_in'],
+        'layout': {"showlegend": True,
+                   'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}},
+                ])
+    
 
 class Rates(ArchiveSection):
     m_def = Section(label_quantity='name')
     name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
 
     reaction_rate = Quantity(
-        type=np.dtype(np.float64),
+        type=np.float64,
         shape=['*'],
         unit='mmol/g/hour',
-        description='reaction rate for mmol of product (or reactant) formed (depleted) per catalyst (g) per time (hour)')
+        description='The reaction rate for mmol of product (or reactant) formed (depleted) per catalyst (g) per time (hour).')
     specific_mass_rate = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='mmol/g/hour',
-        description='reaction rate normalized by active (metal) catalyst mass (in gram), instead of mass of total catalyst')
-    specific_sa_rate = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='mmol/m**2/hour',
-        description='reaction rate normalized by active (metal) surface area of catalyst, instead of mass of total catalyst')
+        type=np.float64, shape=['*'], unit='mmol/g/hour',
+        description='The specific reaction rate normalized by active (metal) catalyst mass, instead of mass of total catalyst.')
+    specific_surface_area_rate = Quantity(
+        type=np.float64, shape=['*'], unit='mmol/m**2/hour',
+        description='The specific reaction rate normalized by active (metal) surface area of catalyst, instead of mass of total catalyst.')
     space_time_yield = Quantity(
-        type=np.dtype(np.float64),
+        type=np.float64,
         shape=['*'],
         unit='g/g/hour',
-        description='product amount formed (in g), per total catalyst (g) per time (hour)')
+        description='The amount of product formed (in g), per total catalyst (g) per time (hour).')
     rate = Quantity(
-        type=np.dtype(np.float64), shape=['*'], unit='g/g/hour',
-        description='reactant amount converted (in g), per total catalyst (g) per time (hour)'
+        type=np.float64, shape=['*'], unit='g/g/hour',
+        description='The amount of reactant converted (in g), per total catalyst (g) per time (hour).'
     )
-    # turn_over_number = Quantity(type=np.dtype(np.float64), shape=['*'])
-    turn_over_frequency = Quantity(type=np.dtype(np.float64), shape=['*'], unit='1/hour')
+    turn_over_frequency = Quantity(
+        type=np.float64, shape=['*'], unit='1/hour',
+        description='The turn oder frequency, calculated from mol of reactant or product, per number of sites, over time.')
 
 
 class Product(Rates, ArchiveSection):
     m_def = Section(label_quantity='name')
 
-    selectivity = Quantity(type=np.dtype(np.float64), shape=['*'])
-    product_yield = Quantity(type=np.dtype(np.float64), shape=['*'])
+    selectivity = Quantity(type=np.float64, shape=['*'])
+    product_yield = Quantity(type=np.float64, shape=['*'])
 
 
 class Reactor_setup(ArchiveSection):
     m_def = Section(label_quantity='name')
     name = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'))
-    reactor_volume = Quantity(type=np.dtype(np.float64), shape=[], unit='ml',
+    reactor_volume = Quantity(type=np.float64, shape=[], unit='ml',
                               a_eln=dict(component='NumberEditQuantity'))
-    bed_length = Quantity(type=np.dtype(np.float64), shape=[], unit='mm',
+    bed_length = Quantity(type=np.float64, shape=[], unit='mm',
                           a_eln=dict(component='NumberEditQuantity'))
-    reactor_cross_section_area = Quantity(type=np.dtype(np.float64), shape=[], unit='mm**2',
+    reactor_cross_section_area = Quantity(type=np.float64, shape=[], unit='mm**2',
+                                          a_eln=dict(component='NumberEditQuantity'))
+    reactor_diameter = Quantity(type=np.float64, shape=[], unit='mm',
                                           a_eln=dict(component='NumberEditQuantity'))
     reactor_shape = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'),
                              props=dict(suggestions=['cylindric', 'spherical']))
@@ -128,15 +159,45 @@ class Reactor_setup(ArchiveSection):
         type=str,
         shape=[],
         description="""
-        component that is mixed with the catalyst to dilute and prevent transport
-        limitations and hot spot formation
+        A component that is mixed with the catalyst to dilute and prevent transport
+        limitations and hot spot formation.
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['SiC', 'SiO2', 'unknown']))
     )
+    diluent_sievefraction_high = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    diluent_sievefraction_low = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    catalyst_mass = Quantity(
+        type=np.float64, shape=[], unit='g',
+        a_eln=dict(component='NumberEditQuantity'))
+    catalyst_sievefraction_high = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    catalyst_sievefraction_low = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    particle_size = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
 
+class CatalyticReactionData_core(ArchiveSection):
+    temperature = Quantity(
+        type=np.float64, shape=['*'], unit='°C')
 
-class CatalyticReactionData(ArchiveSection):
+    pressure = Quantity(
+        type=np.float64, shape=['*'], unit='bar')
+
+    runs = Quantity(type=np.float64, shape=['*'])
+    time_on_stream = Quantity(type=np.float64, shape=['*'], unit='hour')
+
+    reactants_conversions = SubSection(section_def=Conversion, repeats=True)
+    rates = SubSection(section_def=Rates, repeats=True)
+
+class CatalyticReactionData(CatalyticReactionData_core, ArchiveSection):
     m_def = Section(a_plot=[
         {
             "label": "Selectivity [%]",
@@ -239,24 +300,52 @@ class CatalyticReactionData(ArchiveSection):
     ]
     )
 
-    temperature = Quantity(
-        type=np.dtype(
-            np.float64), shape=['*'], unit='°C')
-
-    pressure = Quantity(
-        type=np.dtype(np.float64),
-        shape=['*'],
-        unit='bar'
-    )
-
     c_balance = Quantity(
         type=np.dtype(
             np.float64), shape=['*'])
-
-    runs = Quantity(type=np.dtype(np.float64), shape=['*'])
-    time_on_stream = Quantity(type=np.dtype(np.float64), shape=['*'], unit='hr')
-
     products = SubSection(section_def=Product, repeats=True)
 
-    reactants_conversions = SubSection(section_def=Conversion, repeats=True)
-    rates = SubSection(section_def=Rates, repeats=True)
+
+class Ecat_Product(MSection):
+    m_def = Section(label_quantity='name')
+    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
+    partial_current_density = Quantity(type=np.dtype(np.float64), shape=['*'], unit='mA/cm**2')
+    faradaic_efficiency = Quantity(type=np.dtype(np.float64), shape=['*'])
+
+
+class PotentiostaticMeasurement(MSection):
+    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
+
+class ECatalyticReactionData(MSection):
+
+    m_def = Section(a_plot=[
+        {
+            "label": "Faradeic Efficiencies",
+            'x': 'time',
+            'y': ['products/:/selectivity'],
+            'layout': {"showlegend": True,
+                       'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}}])
+
+    runs = Quantity(type=np.dtype(np.float64), shape=['*'])
+    time_on_stream = Quantity(type=np.dtype(np.float64), shape=['*'], unit='h')
+
+    set_potential = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V')
+
+    corrected_potential = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V')
+
+    resistivity = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V A')
+
+    current = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='mA')
+
+    ecat_products = SubSection(section_def=Ecat_Product, repeats=True)
