@@ -9,6 +9,8 @@ from nomad.metainfo import (
     SubSection,
     Package)
 
+from nomad.units import ureg
+
 from nomad.datamodel.metainfo.eln import (
     #CompositeSystem,
     Measurement)
@@ -23,10 +25,16 @@ from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
     CatalyticReactionData, CatalyticReactionData_core, Feed, Reagent, Conversion, Rates, Reactor_setup,
-    Pretreatment,
-    ECatalyticReactionData, PotentiostaticMeasurement )
+    )
 
 from nomad.datamodel.results import Product, Reactant
+
+from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
+import plotly.express as px
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+import json
+
 
 m_package = Package(name='catalysis')
 
@@ -138,9 +146,9 @@ class Surface_Area(ArchiveSection):
         archive.results.properties.catalytic.catalyst_characterization.method_surface_area = self.method_surface_area_determination
 
 
-class CatalystSample(System, EntryData):
+class CatalystSample(CompositeSystem, EntryData):
     """
-    This schema is adapted to map the data of the clean Oxidation dataset (JACS,
+    This schema is originally adapted to map the data of the clean Oxidation dataset (JACS,
     https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
     represent the instructions given to the user who manually curated the data.
     """
@@ -261,39 +269,42 @@ class CatalyticReaction_core(ArchiveSection):
         a_eln=dict(component='EnumEditQuantity')
     )
 
+# def make_plot(a,b):
+    
+#     return()
 
-class CatalyticReaction(CatalyticReaction_core, EntryData):
+class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
     m_def = Section(
         label='Heterogeneous Catalysis - Activity Test',
         categories=[UseCaseElnCategory],
-        a_plot=[{
-            "label": "Selectivity [%]",
-            'x': 'reaction_data/runs',
-            'y': ['reaction_data/products/:/selectivity'],
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}},
-        {
-            "label": "Reaction Rates [mmol/g/hour]",
-            'x': 'reaction_data/runs',
-            'y': ['reaction_data/rates/:/reaction_rate'],
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}},
-        {
-            "label": "Reaction Conditions",
-            'x': 'reaction_data/runs',
-            'y': ['feed/reagents/:/gas_concentration_in'],'y2': ['reaction_data/temperature'], 
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}}]
+        # a_plot=[{
+        #     "label": "Selectivity [%]",
+        #     'x': 'reaction_data/runs',
+        #     'y': ['reaction_data/products/:/selectivity'],
+        #     'layout': {"showlegend": True,
+        #                'yaxis': {
+        #                    "fixedrange": False}, 'xaxis': {
+        #                    "fixedrange": False}}, "config": {
+        #         "editable": True, "scrollZoom": True}},
+        # {
+        #     "label": "Reaction Rates [mmol/g/hour]",
+        #     'x': 'reaction_data/runs',
+        #     'y': ['reaction_data/rates/:/reaction_rate'],
+        #     'layout': {"showlegend": True,
+        #                'yaxis': {
+        #                    "fixedrange": False}, 'xaxis': {
+        #                    "fixedrange": False}}, "config": {
+        #         "editable": True, "scrollZoom": True}},
+        # {
+        #     "label": "Reaction Conditions",
+        #     'x': 'reaction_data/runs',
+        #     'y': ['feed/reagents/:/gas_concentration_in'],'y2': ['reaction_data/temperature'], 
+        #     'layout': {"showlegend": True,
+        #                'yaxis': {
+        #                    "fixedrange": False}, 'xaxis': {
+        #                    "fixedrange": False}}, "config": {
+        #         "editable": True, "scrollZoom": True}}]
     )
 
     data_file = Quantity(
@@ -307,7 +318,7 @@ class CatalyticReaction(CatalyticReaction_core, EntryData):
 
     reactor_setup = SubSection(section_def=Reactor_setup)
 
-    feed = SubSection(section_def=Feed)
+    reaction_feed = SubSection(section_def=Feed)
     reaction_data = SubSection(section_def=CatalyticReactionData)
 
     measurement_details = SubSection(section_def=Measurement)
@@ -444,7 +455,7 @@ class CatalyticReaction(CatalyticReaction_core, EntryData):
         cat_data.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
         cat_data.reactants_conversions = conversions
         cat_data.rates = rates
-        self.feed = feed
+        self.reaction_feed = feed
         self.reaction_data = cat_data
 
         add_activity(archive)
@@ -484,39 +495,15 @@ class CatalyticReaction(CatalyticReaction_core, EntryData):
 
             try:
                 archive.results.material.elemental_composition = self.sample_reference.elemental_composition
-                # if self.sample_reference.elemental_composition.element not in chemical_symbols:
-                #     logger.warn(
-                #         f"'{self.sample_reference.elemental_composition.element}' is not a valid element symbol and this "
-                #         "elemental_composition section will be ignored.")
-                # elif self.sample_reference.elemental_composition.element not in archive.results.material.elements:
-                #     archive.results.material.elements += [self.sample_reference.elemental_composition.element]
-
+  
             except Exception as e:
                 logger.warn('Could not analyse elemental compostion.', exc_info=e)
 
 
-class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
+class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, EntryData):
     m_def = Section(
         label='Heterogeneous Catalysis - Activity Test NH3 Decomposition',
         categories=[UseCaseElnCategory],
-        a_plot=[{
-            "label": "Conversion [%]",
-            'x': 'reaction_data/time_on_stream',
-            'y': ['reaction_data/reactants_conversions/:/conversion'],
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}},
-        {
-            "label": "Space Time Yield [mmol/g/min]",
-            'x': 'reaction_data/temperature',
-            'y': ['reaction_data/rates/:/reaction_rate'],
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}}]
     )
 
     data_file_h5 = Quantity(
@@ -531,8 +518,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
 
     reactor_setup = SubSection(section_def=Reactor_setup)
 
-    pretreatment = SubSection(section_def=Pretreatment)
-    feed = SubSection(section_def=Feed)
+    pretreatment = SubSection(section_def=Feed)
+    reaction_feed = SubSection(section_def=Feed)
     reaction_data = SubSection(section_def=CatalyticReactionData_core)
 
     measurement_details = SubSection(section_def=Measurement)
@@ -556,27 +543,27 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
         cat_data=CatalyticReactionData_core()
         feed=Feed()
         reactor_setup=Reactor_setup()
-        pretreatment=Pretreatment()
+        pretreatment=Feed()
         measurement_details=Measurement()
         conversions=[]
         conversions2=[]
         rates=[]
         reagents=[]
         pre_reagents=[]
-        time_in_hours=[]
+        time_on_stream=[]
         method=list(data['Analysed Data'].keys())
         for i in method:
             methodname=i
         header=data["Header"][methodname]["Header"]
         feed.catalyst_mass = header["Mass [mg]"]/1000
-        feed.sampling_frequency = header["Temporal resolution [Hz]"]
+        feed.sampling_frequency = header["Temporal resolution [Hz]"]*ureg.hertz
         reactor_setup.reactor_volume = header["Bulk volume [mln]"]
         reactor_setup.reactor_cross_section_area = (header['Inner diameter of reactor (D) [mm]']/2)**2 * np.pi
         reactor_setup.reactor_diameter = header['Inner diameter of reactor (D) [mm]']
         reactor_setup.diluent = header['Diluent material'][0].decode()
         reactor_setup.diluent_sievefraction_high = header['Diluent Sieve fraction high [um]']
         reactor_setup.diluent_sievefraction_low = header['Diluent Sieve fraction low [um]']
-        reactor_setup.catalyst_mass = header['Mass [mg]'][0]/1000
+        reactor_setup.catalyst_mass = header['Mass [mg]'][0]*ureg.milligram
         reactor_setup.catalyst_sievefraction_high = header['Sieve fraction high [um]']
         reactor_setup.catalyst_sievefraction_low = header['Sieve fraction low [um]']
         reactor_setup.particle_size = header['Partical size (Dp) [mm]']
@@ -584,7 +571,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
         self.experimenter = header['User'][0].decode()
 
         pre=data["Analysed Data"][methodname]["H2 Reduction"]
-        pretreatment.set_temperature = pre["Catalyst Temperature [C°]"]
+        pretreatment.set_temperature = pre["Catalyst Temperature [C°]"]*ureg.celsius
         for col in pre.dtype.names :
             if col.startswith('Massflow'):
                 col_split = col.split("(")
@@ -594,7 +581,9 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
                     pre_reagents.append(reagent)
         pretreatment.reagents = pre_reagents
         pretreatment.flow_rates_total = pre['MassFlow (Total Gas) [mln|min]']
-        
+        number_of_runs = len(pre["Catalyst Temperature [C°]"])
+        pretreatment.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
+
         analysed=data["Analysed Data"][methodname]["NH3 Decomposition"]
         
         for col in analysed.dtype.names :
@@ -612,15 +601,16 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
         conversions2.append(conversion2)
         rate = Rates(name='H2', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']))
         rates.append(rate)
-        cat_data.temperature = analysed['Catalyst Temperature [C°]']
+        feed.set_temperature = analysed['Catalyst Temperature [C°]']*ureg.celsius
+        cat_data.temperature = analysed['Catalyst Temperature [C°]']*ureg.celsius
         number_of_runs = len(analysed['NH3 Conversion [%]'])
+        feed.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
         cat_data.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
         time=analysed['Relative Time [Seconds]']
         for i in range(len(time)):
-            t = (float(time[i].decode('UTF-8'))-float(time[0].decode('UTF-8')))/3600
-            time_in_hours.append(t)
-
-        cat_data.time_on_stream = time_in_hours
+            t = float(time[i].decode("UTF-8"))-float(time[0].decode("UTF-8"))
+            time_on_stream.append(t)
+        cat_data.time_on_stream = time_on_stream*ureg.sec
 
         cat_data.reactants_conversions = conversions
         cat_data.rates = rates
@@ -628,9 +618,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
         measurement_details.name = methodname
         measurement_details.datetime = pre['Date'][0].decode()
 
-
         self.reaction_data = cat_data
-        self.feed = feed
+        self.reaction_feed = feed
         self.reactor_setup = reactor_setup
         self.pretreatment=pretreatment
         self.measurement_details=measurement_details
@@ -662,7 +651,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
             if self.sample_reference.surface_area is not None:
                 archive.results.properties.catalytic.catalyst_characterization.surface_area = self.sample_reference.surface_area.surfacearea
 
-        if self.sample_reference.elemental_composition is not None:
+        if self.sample_reference:
+          if self.sample_reference.elemental_composition is not None:
             if not archive.results:
                 archive.results = Results()
             if not archive.results.material:
@@ -670,318 +660,70 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, EntryData):
 
             try:
                 archive.results.material.elemental_composition = self.sample_reference.elemental_composition
-                # if self.sample_reference.elemental_composition.element not in chemical_symbols:
-                #    logger.warn(
-                #        f"'{self.sample_reference.elemental_composition.element}' is not a valid element symbol and this "
-                #        "elemental_composition section will be ignored.")
-                # elif self.sample_reference.elemental_composition.element not in archive.results.material.elements:
-                #    archive.results.material.elements += [self.sample_reference.elemental_composition.element]
-
+        
             except Exception as e:
                 logger.warn('Could not analyse elemental compostion.', exc_info=e)
 
+        fig = px.line(x=self.reaction_data.time_on_stream, y=self.reaction_data.temperature)
+        # fig = px.line(x=[1, 2, 3], y=[1, 2, 3])
+        self.figures.append(PlotlyFigure(label='figure Temp', figure=fig.to_plotly_json()))
 
-class ElectrocatalystSample(CatalystSample, EntryData):
+        for i,c in enumerate(self.reaction_data.reactants_conversions):
+            fig1 = px.line(x=self.reaction_data.time_on_stream, y=[self.reaction_data.reactants_conversions[i].conversion])
+            fig1.update_layout(title_text="Conversion")
+            fig1.update_xaxes(title_text="time(h)")
+            fig1.update_yxases(title_test="Conversion (%)")
+            self.figures.append(PlotlyFigure(label='figure Conversion', figure=fig1.to_plotly_json()))
 
-    m_def = Section(
-        label='Electrocatalyst Sample',
-        # a_eln=dict(  # lane_width='400px',
-        #     hide=['cas_uri', 'cas_number', 'cas_name', 'inchi', 'inchi_key', 'smile',
-        #           'canonical_smile', 'cas_synonyms', 'molecular mass']),
-        categories=[UseCaseElnCategory])
+        fig2 = px.line(x=self.reaction_data.temperature, y=[self.reaction_data.rates[0].reaction_rate])
+        fig2.update_xaxes(title_text="Temperature (K)")
+        fig2.update_yaxes(title_text="reaction rate (mmol(H2)/gcat/min)")
+        self.figures.append(PlotlyFigure(label='figure rates', figure=fig2.to_plotly_json()))
 
-    electrochemically_active_surface_area = Quantity(
-        type=np.float64,
-        unit=("m**2/g"),
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='m**2/g',
-        ))
+        fig3 = px.scatter(x=self.pretreatment.runs, y=self.pretreatment.set_temperature)
+        fig3.update_layout(title_text="Temperature")
+        fig3.update_xaxes(title_text="measurement points",) 
+        fig3.update_yaxes(title_text="Temperature (K)")
+        self.pretreatment.figures.append(PlotlyFigure(label='Temperature', figure=fig3.to_plotly_json()))
 
-    electrode_area_geometric = Quantity(
-        type=np.dtype(np.float64),
-        unit=("cm**2"),
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='cm**2',
-        ))
-
-    catalyst_mass = Quantity(
-        type=np.dtype(np.float64),
-        unit=("mg"),
-        description="""
-        loading of catalyst on electrode support
-        """,
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='mg',
-        ))
-
-    sample_support = Quantity(
-        type=str,
-        shape=[],
-        description="""
-          electrode support
-          """,
-        a_eln=dict(
-            component='EnumEditQuantity', props=dict(
-                suggestions=['carbon paper', 'unknown'])))
-
-    sample_binder = Quantity(
-        type=str,
-        shape=[],
-        description="""
-          binder to fix catalyst to support
-          """,
-        a_eln=dict(
-            component='EnumEditQuantity', props=dict(
-                suggestions=['Nafion', 'unknown'])))
-
-    def normalize(self, archive, logger):
-        super(ElectrocatalystSample, self).normalize(archive, logger)
+        fig4 = px.scatter(x=self.reaction_feed.runs, y=self.reaction_feed.set_temperature)
+        fig4.update_layout(title_text="Temperature")
+        fig4.update_xaxes(title_text="measurement points",) 
+        fig4.update_yaxes(title_text="Temperature (K)")
+        self.reaction_feed.figures.append(PlotlyFigure(label='Temperature', figure=fig4.to_plotly_json()))
 
 
-class ElectroCatalyticReaction(EntryData):  # used to be MSection
+# class CustomSection(PlotSection, EntryData):
 
-    m_def = Section(
-        label='Electrocatalytic Measurement',
-        categories=[UseCaseElnCategory],
-    )
+#     time = Quantity(type=float, shape=['*'], unit='s', a_eln=dict(component='NumberEditQuantity'))
+#     substrate_temperature = Quantity(type=float, shape=['*'], unit='K', a_eln=dict(component='NumberEditQuantity'))
+#     chamber_pressure = Quantity(type=float, shape=['*'], unit='Pa', a_eln=dict(component='NumberEditQuantity'))
 
-    sample_reference = Quantity(
-        type=ElectrocatalystSample,
-        description="""
-        link to an electrocatalyst sample entry
-        """,
-        a_eln=dict(component='ReferenceEditQuantity')
-    )
+#     def normalize(self, archive, logger):
+#         super(CustomSection, self).normalize(archive, logger)
 
-    reaction_class = Quantity(
-        type=str,
-        description="""
-        highlevel classification of reaction
-        """,
-        a_eln=dict(component='EnumEditQuantity', props=dict(suggestions=[
-            'Oxidation', 'Reduction']
-        )))
+#         first_line = px.scatter(x=self.time, y=self.substrate_temperature)
+#         second_line = px.scatter(x=self.time, y=self.chamber_pressure)
+#         figure1 = make_subplots(rows=1, cols=2, shared_yaxes=True)
+#         figure1.add_trace(first_line.data[0], row=1, col=1)
+#         figure1.add_trace(second_line.data[0], row=1, col=2)
+#         figure1.update_layout(height=400, width=716, title_text="Creating Subplots in Plotly")
+#         self.figures.append(PlotlyFigure(label='figure 1', figure=figure1.to_plotly_json()))
 
-    reaction_name = Quantity(
-        type=str,
-        description="""
-          name of reaction
-          """,
-        a_eln=dict(
-            component='EnumEditQuantity', props=dict(suggestions=[
-                'CO2RR', 'HER', 'OER'])))
+#         figure2 = px.scatter(x=self.substrate_temperature, y=self.chamber_pressure, color=self.chamber_pressure, title="Chamber as a function of Temperature")
+#         self.figures.append(PlotlyFigure(label='figure 2', figure=figure2.to_plotly_json()))
 
-    existing_experiment_handbook = Quantity(
-        description="""
-        was the experiment performed according to a handbook
-        """,
-        type=str,
-        shape=[],
-        a_eln=dict(component='FileEditQuantity')
-    )
+#         heatmap_data = [[None, None, None, 12, 13, 14, 15, 16],
+#              [None, 1, None, 11, None, None, None, 17],
+#              [None, 2, 6, 7, None, None, None, 18],
+#              [None, 3, None, 8, None, None, None, 19],
+#              [5, 4, 10, 9, None, None, None, 20],
+#              [None, None, None, 27, None, None, None, 21],
+#              [None, None, None, 26, 25, 24, 23, 22]]
 
-    institute = Quantity(
-        type=str,
-        shape=[],
-        description="""
-        The institution at which the measurement was performed.
-        """,
-        a_eln=dict(component='EnumEditQuantity', props=dict(
-            suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
-                         'Fritz-Haber-Institut Berlin / ISC',
-                         'TU Berlin, BASCat', 'HZB', 'CATLAB']))
-    )
-
-    experimenter = Quantity(
-        type=str,
-        shape=[],
-        description="""
-        person that performed or started the measurement
-        """,
-        a_eln=dict(component='EnumEditQuantity')
-    )
-
-    data_file = Quantity(
-        type=str,
-        description="""
-        An excel or csv file that contains results of a electrocatalytic measurement with
-        corrected potential, current, gas feed composition, partial current density,
-        and Faradeic Efficiency (product selectivities)
-        """,
-        a_eln=dict(component='FileEditQuantity'),
-        a_browser=dict(adaptor='RawFileAdaptor'))
-
-    electrolyte = Quantity(
-        type=str,
-        a_eln=dict(component='StringEditQuantity',
-                   props=dict(suggestions=['Water', 'Base', 'Acid'])))
-
-    electrolyte_concentration = Quantity(
-        type=np.dtype(np.float64),
-        shape=[],
-        unit='mol/L',
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='mol/L'))
-
-    electrolyte_gas_saturation = Quantity(
-        type=str,
-        a_eln=dict(component='StringEditQuantity',
-                   props=dict(suggestions=['Argon', 'N2', 'CO2'])))
-
-    stirring_speed = Quantity(
-        type=np.float64,
-        shape=[],
-        unit='1/s',
-        a_eln=dict(
-            component='NumberEditQuantity', defaultDisplayUnit='1/s'))
-
-    pH = Quantity(
-        type=np.dtype(np.float64),
-        unit=("pH"),
-        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='pH'))
-
-    measurement_type = Quantity(
-        type=str,
-        shape=[],
-        a_eln=dict(component='StringEditQuantity',
-                   props=dict(suggestions=['constant potential', 'pulsed potential', 'constant current']))
-    )
-
-    potential = Quantity(
-        type=np.float64,
-        unit=("mV"),
-        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='mV'))
-
-    measurement_duration = Quantity(
-        type=np.float64,
-        unit=("s"),
-        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='s'))
-
-    electrode_support = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
-    electrocatalyst_binder = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
-
-    cell_type = Quantity(
-        type=str,
-        a_eln=dict(component='StringEditQuantity', props=dict(
-            suggestions=['H-type', 'flow', 'other'])))
-    
-    membrane = Quantity(
-        type=str,
-        a_eln=dict(component='StringEditQuantity', props=dict(
-            suggestions=['other'])))
-
-    counter_electrode = Quantity(type=str, a_eln=dict(component='StringEditQuantity', props=dict(
-            suggestions=['Pt'])))
-    reference_electrode = Quantity(type=str, a_eln=dict(component='StringEditQuantity', props=dict(
-            suggestions=['RHE', 'Ag/AgCl'])))
-
-    e_feed = SubSection(section_def=Feed)
-
-    e_reaction_data = SubSection(section_def=ECatalyticReactionData)
-
-    potentiostatic_measurement = SubSection(section_def=PotentiostaticMeasurement)
-    measurement_details = SubSection(section_def=Measurement)
-
-    def normalize(self, archive, logger):
-        super(ElectroCatalyticReaction, self).normalize(archive, logger)
-
-        if not self.data_file:
-            return
-
-        if os.path.splitext(
-                self.data_file)[-1] != ".csv" and os.path.splitext(
-                self.data_file)[-1] != ".xlsx":
-            raise ValueError("Unsupported file format. Only xlsx and .csv files")
-
-        if self.data_file.endswith(".csv"):
-            with archive.m_context.raw_file(self.data_file) as f:
-                import pandas as pd
-                data = pd.read_csv(f.name).dropna(axis=1, how='all')
-        elif self.data_file.endswith(".xlsx"):
-            with archive.m_context.raw_file(self.data_file) as f:
-                import pandas as pd
-                data = pd.read_excel(f.name, sheet_name=0)
-
-        data.dropna(axis=1, how='all', inplace=True)
-        feed = Feed()
-        e_cat_data = ECatalyticReactionData()
-        reactants = []
-        reactant_names = []
-        products = []
-        product_names = []
-        faradaic_efficiencies = []
-        partial_current_densities = []
-        number_of_runs = 0
-        for col in data.columns:
-
-            if len(data[col]) < 1:
-                continue
-            col_split = col.split(" ")
-            if len(col_split) < 2:
-                continue
-
-            if len(data[col]) > number_of_runs:
-                number_of_runs = len(data[col])
-
-            if col_split[0] == "x":
-                reactant = Reactant(name=col_split[1],
-                                    amount=data[col])
-                reactant_names.append(col_split[1])
-                reactants.append(reactant)
-
-            if col_split[0] == "ToS":
-                e_cat_data.time_on_stream = data[col]
-
-            if col_split[0] == "gas_flow":
-                feed.flow_rates = data[col]
-
-            if col_split[0] == "partial current density":  # corresponds to reaction rate
-                partial_current_densities = Ecat_Product(name=col_split[3],
-                                                         partial_current_density=data[col])
-
-                Ecat_Product.partial_current_density = data[col]
-                partial_current_densities.append(partial_current_densities)
-
-            if col_split[0] == "F.E.":  # Faradeic Efficiency (selectivity)
-                product = Ecat_Product(name=col_split[1])
-                for i, p in enumerate(products):
-                    if p.name == col_split[1]:
-                        product = products.pop(i)
-                        break
-
-                products.append(product)
-
-                product.faradaic_efficiency = data[col]
-                product_names.append(col_split[1])
-                faradaic_efficiencies.append(data[col])
-
-        for p in products:
-            if p.selectivity is None or len(p.selectivity) == 0:
-                p.selectivity = number_of_runs * [0]
-
-        feed.reactants = reactants
-        feed.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
-        e_cat_data.ecat_products = products
-        e_cat_data.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
-        e_cat_data.product = faradaic_efficiencies
-
-        self.feed = feed
-        self.e_reaction_data = e_cat_data
-
-        add_activity(archive)
-
-        # if feed.reactants is not None:
-        #     archive.results.properties.catalytic.reactivity.reactants = reactants
-        #     archive.results.properties.catalytic.activity.conversion='cat_data.conversion/0:1/conversion_product_based'
-        #     archive.results.properties.catalytic.reactivity.conversion_names = conversion_names
-        # if products is not None:
-        #     archive.results.properties.catalytic.reactivity.products = products
-        if self.reaction_name:
-            archive.results.properties.catalytic.reactivity.reaction_name = self.reaction_name
-            archive.results.properties.catalytic.reactivity.reaction_class = self.reaction_class
-
-
-m_package.__init_metainfo__()
+#         heatmap = go.Heatmap(z=heatmap_data, showscale=False, connectgaps=True, zsmooth='best')
+#         figure3 = go.Figure(data=heatmap)
+#         self.figures.append(PlotlyFigure(label='figure 3', figure=figure3.to_plotly_json()))
 
 
 m_package.__init_metainfo__()
