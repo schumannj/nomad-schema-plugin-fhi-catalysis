@@ -226,7 +226,7 @@ class CatalyticReactionData_core(ArchiveSection):
     reactants_conversions = SubSection(section_def=Conversion, repeats=True)
     rates = SubSection(section_def=Rates, repeats=True)
 
-class CatalyticReactionData(CatalyticReactionData_core, ArchiveSection):
+class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSection):
     m_def = Section(
     #     a_plot=[
     #     {
