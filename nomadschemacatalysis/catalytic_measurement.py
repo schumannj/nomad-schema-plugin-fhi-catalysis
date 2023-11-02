@@ -56,16 +56,6 @@ class Reactant(Reagent):
 
 
 class Feed(PlotSection, ArchiveSection):  
-    # m_def = Section(a_plot=[
-    #     {
-    #         "title": "Feed",
-    #         "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_concentration_in'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}}]
-    #             )
 
     space_velocity = Quantity(
         type=np.float64, shape=['*'], unit='1/hour')  #, a_eln=dict(component='NumberEditQuantity'))
@@ -91,38 +81,10 @@ class Feed(PlotSection, ArchiveSection):
 
     reagents = SubSection(section_def=Reagent, repeats=True)
 
-    def normalize(self, archive, logger):
-        super(Feed, self).normalize(archive, logger)
-
-        
-        #if self.set_temperature and self.runs is not None:
-        fig = px.scatter(x=self.runs, y=self.set_temperature)
-        #fig.update_layout(title_text="Temperature", xaxis="measurement points", yaxis="Temperature (K)")
-        self.figures.append(PlotlyFigure(label='Temperature', figure=fig.to_plotly_json()))
-
-        # if self.reagents[0].gas_concentration_in and self.runs is not None:
-        #     fig = px.scatter(x=self.runs, y=self.reagents[0].gas_concentration_in)
-        #     for i,n in enumerate(self.reagents):
-        #         if i > 0:
-        #             fig.add_trace=(self.reagents[i].gas_concentration_in)
-        #     self.figures.append(PlotlyFigure(label='gas concentration', figure=fig.to_plotly_json()))
-        # elif self.reagents[0].flow_rate and self.runs is not None:
-        #     fig = px.scatter(x=self.runs, y=self.reagents[0].flow_rate)
-        #     for i,n in enumerate(self.reagents):
-        #         if i > 0:
-        #             fig.add_trace=(self.reagents[i].flow_rate)
-        #     self.figures.append(PlotlyFigure(label='gas flow rate', figure=fig.to_plotly_json()))
 
 # class Pretreatment(Feed):
 #     m_def = Section(
-#     a_plot=[{
-#         "title": "Temperature",
-#         "label": "Temperature", 'x': 'runs', 'y': ['set_temperature'],
-#         'layout': {"showlegend": True,
-#                    'yaxis': {
-#                            "fixedrange": False}, 'xaxis': {
-#                            "fixedrange": False}}, "config": {
-#                 "editable": True, "scrollZoom": True}},
+#     a_plot=[
 #         {
 #         "title": "Pretreatment Feed",
 #         "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_concentration_in'],
@@ -230,24 +192,6 @@ class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSect
     m_def = Section(
     #     a_plot=[
     #     {
-    #         "label": "Selectivity [%]",
-    #         'x': 'runs',
-    #         'y': ['products/:/selectivity'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "Conversion X [%]",
-    #         'x': 'runs',
-    #         'y': ['reactants_conversions/:/conversion_product_based'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
     #         "label": "Conversion x_p ",
     #         'x': 'runs',
     #         'y': ['reactants_conversions/:/conversion_reactant_based'],
@@ -265,67 +209,6 @@ class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSect
     #                        "fixedrange": False}, 'xaxis': {
     #                        "fixedrange": False}}, "config": {
     #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "Temperature",
-    #         'x': 'runs',
-    #         'y': ['temperature'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "S_X plot",
-    #         # "mode": "markers",
-    #         'x': ['reactants_conversions/0:1/conversion'],
-    #         'y': ['products/:/selectivity'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True},
-    #         "lines": [
-    #             {"mode": "markers"}, {"mode": "markers"}, {"mode": "markers"}, {"mode": "markers"}]
-    #     },
-    #     {
-    #         "label": "S_X plot 2",
-    #         'x': ['reactants_conversions/1:2/conversion'],
-    #         'y': ['products/:/selectivity'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True},
-    #         "lines": [{"mode": "markers"}, {"mode": "markers"}, {"mode": "markers"},
-    #                   {"mode": "markers"}]
-    #     },
-    #     {
-    #         "label": "rate",
-    #         'x': 'runs',
-    #         'y': ['rates/:/reaction_rate'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "Temp vs. rate",
-    #         'x': 'temperature',
-    #         'y': ['rates/:/reaction_rate'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "TOS vs. rate",
-    #         'x': ['time_on_stream', 'runs'],
-    #         'y': ['rates/:/reaction_rate', 'rates/:/reaction_rate'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}
     #     }
     # ]
     )
