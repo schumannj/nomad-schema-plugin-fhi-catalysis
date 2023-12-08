@@ -25,8 +25,7 @@ from nomad.datamodel.results import Product, Reactant
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, CatalyticReactionData_core, Feed, Reagent, Conversion, Rates, Reactor_setup,
-    ECatalyticReactionData, PotentiostaticMeasurement )
+    CatalyticReactionData, CatalyticReactionData_core, Feed, Reagent, Conversion, Rates, Reactor_setup, )
 
 
 from .schema import CatalystSample
@@ -56,7 +55,53 @@ def add_activity(archive):
     if not archive.results.properties.catalytic:
         archive.results.properties.catalytic = CatalyticProperties()
     if not archive.results.properties.catalytic.reactivity:
-        archive.results.properties.catalytic.reactivity = Reactivity(
+        archive.results.properties.catalytic.reactivity = Reactivity()
+
+
+class Ecat_Product(MSection):
+    m_def = Section(label_quantity='name')
+    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
+    partial_current_density = Quantity(type=np.dtype(np.float64), shape=['*'], unit='mA/cm**2')
+    faradaic_efficiency = Quantity(type=np.dtype(np.float64), shape=['*'])
+
+
+class PotentiostaticMeasurement(MSection):
+    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
+
+class ECatalyticReactionData(MSection):
+
+    m_def = Section(a_plot=[
+        {
+            "label": "Faradeic Efficiencies",
+            'x': 'time',
+            'y': ['products/:/selectivity'],
+            'layout': {"showlegend": True,
+                       'yaxis': {
+                           "fixedrange": False}, 'xaxis': {
+                           "fixedrange": False}}, "config": {
+                "editable": True, "scrollZoom": True}}])
+
+    runs = Quantity(type=np.dtype(np.float64), shape=['*'])
+    time_on_stream = Quantity(type=np.dtype(np.float64), shape=['*'], unit='h')
+
+    set_potential = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V')
+
+    corrected_potential = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V')
+
+    resistivity = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='V A')
+
+    current = Quantity(
+        type=np.dtype(
+            np.float64), shape=['*'], unit='mA')
+
+    ecat_products = SubSection(section_def=Ecat_Product, repeats=True)
+
 
 class ElectrocatalystSample(CatalystSample, EntryData):
 

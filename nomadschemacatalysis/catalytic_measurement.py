@@ -18,8 +18,11 @@
 
 import numpy as np
 
-from nomad.metainfo import (Quantity, SubSection, Section, MSection)
+from nomad.metainfo import (Quantity, SubSection, Section)
 from nomad.datamodel.data import ArchiveSection
+from nomad.datamodel.metainfo.basesections import (PubChemPureSubstanceSection, PureSubstanceComponent)
+
+from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reactivity)
 
 from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
 import plotly.express as px
@@ -27,16 +30,57 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import json
 
+from nomad.datamodel.metainfo.annotations import (
+    ELNAnnotation,
+)
+
+def add_activity(archive):
+    '''Adds metainfo structure for catalysis activity test data.'''
+    if not archive.results:
+        archive.results = Results()
+    if not archive.results.properties:
+        archive.results.properties = Properties()
+    if not archive.results.properties.catalytic:
+        archive.results.properties.catalytic = CatalyticProperties()
+    if not archive.results.properties.catalytic.reactivity:
+        archive.results.properties.catalytic.reactivity = Reactivity()
+
 class Reagent(ArchiveSection):
     m_def = Section(label_quantity='name', description='a chemical substance present in the initial reaction mixture')
-    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'), description="reagent name")
+    name = Quantity(type=str, a_eln=ELNAnnotation(label='reagent name', component='StringEditQuantity'), description="reagent name")
     gas_concentration_in = Quantity(
         type=np.float64, shape=['*'],
-        description='Volumetric fraction of reactant in feed.')
+        description='Volumetric fraction of reactant in feed.', 
+        a_eln=ELNAnnotation(component='NumberEditQuantity'))
     flow_rate = Quantity(
         type=np.float64, shape=['*'], unit='mL/minutes',
-        description='Flow rate of reactant in feed.')
+        description='Flow rate of reactant in feed.',
+        a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
+    pure_reagent = SubSection(section_def=PubChemPureSubstanceSection)
+
+
+    def normalize(self, archive, logger: 'BoundLogger') -> None:
+        '''
+        The normalizer for the `PureSubstanceComponent` class. If none is set, the
+        normalizer will set the name of the component to be the molecular formula of the
+        substance.
+
+        Args:
+            archive (EntryArchive): The archive containing the section that is being
+            normalized.
+            logger ('BoundLogger'): A structlog logger.
+        '''
+        super(Reagent, self).normalize(archive, logger)
+        if self.name and self.pure_reagent is None:
+            self.pure_reagent = PubChemPureSubstanceSection(
+                name=self.name
+            )
+            self.pure_reagent.normalize(archive, logger)
+        
+        if self.name is None and self.pure_reagent is not None:
+            self.name = self.pure_reagent.molecular_formula
+        
 
 class Conversion(ArchiveSection):
     m_def = Section(label_quantity='name')
@@ -54,52 +98,163 @@ class Reactant(Reagent):
 
     conversion = SubSection(section_def=Conversion)
 
+class ReactionConditions(PlotSection, ArchiveSection):
+    m_def = Section(description='A class for reaction conditions for a generic reaction.')
 
-class Feed(PlotSection, ArchiveSection):  
-
-    space_velocity = Quantity(
-        type=np.float64, shape=['*'], unit='1/hour')  #, a_eln=dict(component='NumberEditQuantity'))
-
-    set_pressure = Quantity(
-        type=np.float64, shape=['*'], unit='bar')  #, a_eln=dict(component='NumberEditQuantity'))
-    
     set_temperature = Quantity(
-        type=np.float64, shape=['*'], unit='K')  #, a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='K', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    
+    set_pressure = Quantity(
+        type=np.float64, shape=['*'], unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    
+    set_total_flow_rate = Quantity(
+        type=np.float64, shape=['*'], unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    
+    weight_hourly_space_velocity = Quantity(
+        type=np.float64, shape=['*'], unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity'))
 
-    flow_rates_total = Quantity(
-        type=np.float64, shape=['*'], unit='mL/minutes')  #, a_eln=dict(component='NumberEditQuantity'))
+    contact_time = Quantity(
+        type=np.float64, shape=['*'], unit='g*s/mL', a_eln=ELNAnnotation(label='W|F'))
 
-    catalyst_mass = Quantity(
-        type=np.float64, shape=[], unit='g', a_eln=dict(component='NumberEditQuantity'))
+    gas_hourly_space_velocity = Quantity(
+        type=np.float64, shape=['*'], unit='1/hour', a_eln=dict(component='NumberEditQuantity'))
 
     runs = Quantity(type=np.float64, shape=['*'])
 
     sampling_frequency = Quantity(
         type=np.float64, shape=[], unit='Hz',
-        description='The number of runs per time.',
+        description='The number of measurement points per time.',
         a_eln=dict(component='NumberEditQuantity'))
-
+    
+    time_on_stream = Quantity(
+        type=np.float64, shape=['*'], unit='hour', a_eln=dict(component='NumberEditQuantity'))
+    
     reagents = SubSection(section_def=Reagent, repeats=True)
 
+    def normalize(self, archive, logger):
+        super(ReactionConditions, self).normalize(archive, logger)
 
-# class Pretreatment(Feed):
-#     m_def = Section(
-#     a_plot=[
-#         {
-#         "title": "Pretreatment Feed",
-#         "label": "gas composition", 'x': 'runs', 'y': ['reagents/:/gas_concentration_in'],
-#         'layout': {"showlegend": True,
-#                    'yaxis': {
-#                            "fixedrange": False}, 'xaxis': {
-#                            "fixedrange": False}}, "config": {
-#                 "editable": True, "scrollZoom": True}},
-#                 ]
-#     )
+        if self.runs is None:
+            number_of_runs=len(self.set_temperature)
+            self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
+        else:
+            number_of_runs=len(self.runs)
+        
+        if self.set_pressure is not None:
+            if len(self.set_pressure) == 1:
+                set_pressure=[]
+                for n in range(number_of_runs):
+                    set_pressure.append(self.set_pressure)
+                self.set_pressure=set_pressure
+        if self.set_total_flow_rate is not None:
+            if len(self.set_total_flow_rate) < number_of_runs:
+                set_total_flow_rate=[]
+                for n in range(number_of_runs):
+                    set_total_flow_rate.append(self.set_total_flow_rate)
+                self.set_total_flow_rate=set_total_flow_rate
+
+
+        add_activity(archive)
+
+        if self.set_temperature is not None:
+            archive.results.properties.catalytic.reactivity.test_temperatures = self.set_temperature
+        if self.set_pressure is not None:
+            archive.results.properties.catalytic.reactivity.pressure = self.set_pressure
+        if self.set_total_flow_rate is not None:
+            archive.results.properties.catalytic.reactivity.flow_rate = self.set_total_flow_rate
+        if self.weight_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reactivity.weight_hourly_space_velocity = self.weight_hourly_space_velocity
+        if self.reagents is not None:
+            archive.results.properties.catalytic.reactivity.reactants = self.reagents
+            #archive.results.properties.catalytic.reactivity.reactants.gas_consentration_in = self.reagents.gas_concentration_in
     
+        #Figures definitions:
+        if self.time_on_stream is not None:
+            x=self.time_on_stream.to('hour')
+            x_text="time (h)"
+        else:
+            x=self.runs
+            x_text="steps" 
+
+        if self.set_temperature is not None:
+            figT = px.scatter(x=x, y=self.set_temperature.to('kelvin'))
+            figT.update_layout(title_text="Temperature")
+            figT.update_xaxes(title_text=x_text,) 
+            figT.update_yaxes(title_text="Temperature (K)")
+            self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
+        # print(len(self.set_total_flow_rate), len(x))
+        # print(self.set_total_flow_rate)
+        # if len(self.set_total_flow_rate) == len(x):
+        #     figF = px.scatter(x=x, y=np.array(self.set_total_flow_rate))
+        #     figF.update_layout(title_text="Total Flow Rate")
+        #     figF.update_xaxes(title_text=x_text) 
+        #     figF.update_yaxes(title_text="Total Flow Rate")
+        #     self.figures.append(PlotlyFigure(label='Total Flow Rate', figure=figF.to_plotly_json()))
+        # elif self.weight_hourly_space_velocity is not None:
+        #     fig6 = px.scatter(x=x, y=self.weight_hourly_space_velocity)
+        #     fig6.update_layout(title_text="WHSV")
+        #     fig6.update_xaxes(title_text=x_text) 
+        #     fig6.update_yaxes(title_text="WHSV (mL/gh)")
+        #     self.figures.append(PlotlyFigure(label='Space Velocity', figure=fig6.to_plotly_json()))
+        
+        if self.reagents is not None and (self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None):
+            fig5 = go.Figure()
+            for i,c in enumerate(self.reagents):
+                if self.reagents[0].flow_rate is not None:
+                    fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].flow_rate, name=self.reaction_conditions.reagents[i].name))
+                    y5_text="Flow rates ()"
+                    if self.set_total_flow_rate is not None and i == 0:
+                        fig5.add_trace(go.Scatter(x=x,y=self.set_total_flow_rate, name='Total Flow Rates'))
+                elif self.reagents[0].gas_concentration_in is not None:
+                    fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].gas_concentration_in, name=self.reagents[i].name))    
+                    y5_text="gas concentrations"
+            fig5.update_layout(title_text="Gas feed", showlegend=True)
+            fig5.update_xaxes(title_text=x_text) 
+            fig5.update_yaxes(title_text=y5_text)
+            self.figures.append(PlotlyFigure(label='Feed Gas', figure=fig5.to_plotly_json()))
+
+
+
+class Feed(ReactionConditions, ArchiveSection):  
+
+
+    diluent = Quantity(
+        type=str,
+        shape=[],
+        description="""
+        A component that is mixed with the catalyst to dilute and prevent transport
+        limitations and hot spot formation.
+        """,
+        a_eln=dict(component='EnumEditQuantity', props=dict(
+            suggestions=['SiC', 'SiO2', 'unknown']))
+    )
+    diluent_sievefraction_high = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    diluent_sievefraction_low = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    catalyst_mass = Quantity(
+        type=np.float64, shape=[], unit='g',
+        a_eln=dict(component='NumberEditQuantity'))
+    apparent_catalyst_volume = Quantity(
+        type=np.float64, shape=[], unit='mL', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    catalyst_sievefraction_high = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    catalyst_sievefraction_low = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    particle_size = Quantity(
+        type=np.float64, shape=[], unit='micrometer',
+        a_eln=dict(component='NumberEditQuantity'))
+    
+    def normalize(self, archive, logger):
+        super(Feed, self).normalize(archive, logger)
 
 class Rates(ArchiveSection):
     m_def = Section(label_quantity='name')
-    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
+    name = Quantity(type=str, a_eln=ELNAnnotation(component='StringEditQuantity'))
 
     reaction_rate = Quantity(
         type=np.float64,
@@ -136,44 +291,17 @@ class Product(Rates, ArchiveSection):
 class Reactor_setup(ArchiveSection):
     m_def = Section(label_quantity='name')
     name = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'))
-    reactor_volume = Quantity(type=np.float64, shape=[], unit='ml',
-                              a_eln=dict(component='NumberEditQuantity'))
+    reactor_type = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'),
+                             props=dict(suggestions=['plug flow reactor', 'batch reactor', 'continuous stirred-tank reactor', 'fluidized bed']))
     bed_length = Quantity(type=np.float64, shape=[], unit='mm',
                           a_eln=dict(component='NumberEditQuantity'))
     reactor_cross_section_area = Quantity(type=np.float64, shape=[], unit='mm**2',
                                           a_eln=dict(component='NumberEditQuantity'))
     reactor_diameter = Quantity(type=np.float64, shape=[], unit='mm',
                                           a_eln=dict(component='NumberEditQuantity'))
-    reactor_shape = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'),
-                             props=dict(suggestions=['cylindric', 'spherical']))
-    diluent = Quantity(
-        type=str,
-        shape=[],
-        description="""
-        A component that is mixed with the catalyst to dilute and prevent transport
-        limitations and hot spot formation.
-        """,
-        a_eln=dict(component='EnumEditQuantity', props=dict(
-            suggestions=['SiC', 'SiO2', 'unknown']))
-    )
-    diluent_sievefraction_high = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    diluent_sievefraction_low = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    catalyst_mass = Quantity(
-        type=np.float64, shape=[], unit='g',
-        a_eln=dict(component='NumberEditQuantity'))
-    catalyst_sievefraction_high = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    catalyst_sievefraction_low = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    particle_size = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+    reactor_volume = Quantity(type=np.float64, shape=[], unit='ml',
+                              a_eln=dict(component='NumberEditQuantity'))
+    
 
 class CatalyticReactionData_core(ArchiveSection):
     temperature = Quantity(
@@ -188,77 +316,10 @@ class CatalyticReactionData_core(ArchiveSection):
     reactants_conversions = SubSection(section_def=Conversion, repeats=True)
     rates = SubSection(section_def=Rates, repeats=True)
 
+
 class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSection):
-    m_def = Section(
-    #     a_plot=[
-    #     {
-    #         "label": "Conversion x_p ",
-    #         'x': 'runs',
-    #         'y': ['reactants_conversions/:/conversion_reactant_based'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     {
-    #         "label": "Carbon Balance",
-    #         'x': 'runs',
-    #         'y': ['c_balance'],
-    #         'layout': {"showlegend": True,
-    #                    'yaxis': {
-    #                        "fixedrange": False}, 'xaxis': {
-    #                        "fixedrange": False}}, "config": {
-    #             "editable": True, "scrollZoom": True}},
-    #     }
-    # ]
-    )
 
     c_balance = Quantity(
         type=np.dtype(
             np.float64), shape=['*'])
     products = SubSection(section_def=Product, repeats=True)
-
-
-class Ecat_Product(MSection):
-    m_def = Section(label_quantity='name')
-    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
-    partial_current_density = Quantity(type=np.dtype(np.float64), shape=['*'], unit='mA/cm**2')
-    faradaic_efficiency = Quantity(type=np.dtype(np.float64), shape=['*'])
-
-
-class PotentiostaticMeasurement(MSection):
-    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
-
-class ECatalyticReactionData(MSection):
-
-    m_def = Section(a_plot=[
-        {
-            "label": "Faradeic Efficiencies",
-            'x': 'time',
-            'y': ['products/:/selectivity'],
-            'layout': {"showlegend": True,
-                       'yaxis': {
-                           "fixedrange": False}, 'xaxis': {
-                           "fixedrange": False}}, "config": {
-                "editable": True, "scrollZoom": True}}])
-
-    runs = Quantity(type=np.dtype(np.float64), shape=['*'])
-    time_on_stream = Quantity(type=np.dtype(np.float64), shape=['*'], unit='h')
-
-    set_potential = Quantity(
-        type=np.dtype(
-            np.float64), shape=['*'], unit='V')
-
-    corrected_potential = Quantity(
-        type=np.dtype(
-            np.float64), shape=['*'], unit='V')
-
-    resistivity = Quantity(
-        type=np.dtype(
-            np.float64), shape=['*'], unit='V A')
-
-    current = Quantity(
-        type=np.dtype(
-            np.float64), shape=['*'], unit='mA')
-
-    ecat_products = SubSection(section_def=Ecat_Product, repeats=True)
