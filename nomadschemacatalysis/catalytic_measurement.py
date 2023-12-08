@@ -72,6 +72,7 @@ class Reagent(ArchiveSection):
             logger ('BoundLogger'): A structlog logger.
         '''
         super(Reagent, self).normalize(archive, logger)
+        
         if self.name and self.pure_reagent is None:
             self.pure_reagent = PubChemPureSubstanceSection(
                 name=self.name
@@ -94,18 +95,18 @@ class Conversion(ArchiveSection):
 
 
 class Reactant(Reagent):
-    m_def = Section(label_quantity='name', description='a reagent that has a conversion in a reaction that is not null')
+    m_def = Section(label_quantity='name', description='A reagent that has a conversion in a reaction that is not null')
 
     conversion = SubSection(section_def=Conversion)
 
 class ReactionConditions(PlotSection, ArchiveSection):
-    m_def = Section(description='A class for reaction conditions for a generic reaction.')
+    m_def = Section(description='A class containing reaction conditions for a generic reaction.')
 
     set_temperature = Quantity(
         type=np.float64, shape=['*'], unit='K', a_eln=ELNAnnotation(component='NumberEditQuantity'))
     
     set_pressure = Quantity(
-        type=np.float64, shape=['*'], unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='bar'))
     
     set_total_flow_rate = Quantity(
         type=np.float64, shape=['*'], unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity'))
@@ -127,14 +128,16 @@ class ReactionConditions(PlotSection, ArchiveSection):
         a_eln=dict(component='NumberEditQuantity'))
     
     time_on_stream = Quantity(
-        type=np.float64, shape=['*'], unit='hour', a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='hour'))
     
     reagents = SubSection(section_def=Reagent, repeats=True)
 
     def normalize(self, archive, logger):
         super(ReactionConditions, self).normalize(archive, logger)
-
-        if self.runs is None:
+        for reagent in self.reagents:
+            reagent.normalize(archive, logger)
+        
+        if self.runs is None and self.set_temperature is not None:
             number_of_runs=len(self.set_temperature)
             self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
         else:
@@ -146,8 +149,9 @@ class ReactionConditions(PlotSection, ArchiveSection):
                 for n in range(number_of_runs):
                     set_pressure.append(self.set_pressure)
                 self.set_pressure=set_pressure
+
         if self.set_total_flow_rate is not None:
-            if len(self.set_total_flow_rate) < number_of_runs:
+            if len(self.set_total_flow_rate) == 1:
                 set_total_flow_rate=[]
                 for n in range(number_of_runs):
                     set_total_flow_rate.append(self.set_total_flow_rate)
@@ -182,20 +186,6 @@ class ReactionConditions(PlotSection, ArchiveSection):
             figT.update_xaxes(title_text=x_text,) 
             figT.update_yaxes(title_text="Temperature (K)")
             self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
-        # print(len(self.set_total_flow_rate), len(x))
-        # print(self.set_total_flow_rate)
-        # if len(self.set_total_flow_rate) == len(x):
-        #     figF = px.scatter(x=x, y=np.array(self.set_total_flow_rate))
-        #     figF.update_layout(title_text="Total Flow Rate")
-        #     figF.update_xaxes(title_text=x_text) 
-        #     figF.update_yaxes(title_text="Total Flow Rate")
-        #     self.figures.append(PlotlyFigure(label='Total Flow Rate', figure=figF.to_plotly_json()))
-        # elif self.weight_hourly_space_velocity is not None:
-        #     fig6 = px.scatter(x=x, y=self.weight_hourly_space_velocity)
-        #     fig6.update_layout(title_text="WHSV")
-        #     fig6.update_xaxes(title_text=x_text) 
-        #     fig6.update_yaxes(title_text="WHSV (mL/gh)")
-        #     self.figures.append(PlotlyFigure(label='Space Velocity', figure=fig6.to_plotly_json()))
         
         if self.reagents is not None and (self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None):
             fig5 = go.Figure()
@@ -287,6 +277,29 @@ class Product(Rates, ArchiveSection):
     selectivity = Quantity(type=np.float64, shape=['*'])
     product_yield = Quantity(type=np.float64, shape=['*'])
 
+    pure_product = SubSection(section_def=PubChemPureSubstanceSection)
+
+    def normalize(self, archive, logger: 'BoundLogger') -> None:
+        '''
+        The normalizer for the adjusted `PureSubstanceComponent` class. If none is set, the
+        normalizer will set the name of the component to be the molecular formula of the
+        substance.
+
+        Args:
+            archive (EntryArchive): The archive containing the section that is being
+            normalized.
+            logger ('BoundLogger'): A structlog logger.
+        '''
+        super(Product, self).normalize(archive, logger)
+        
+        if self.name and self.pure_product is None:
+            self.pure_product = PubChemPureSubstanceSection(
+                name=self.name
+            )
+            self.pure_product.normalize(archive, logger)
+        
+        if self.name is None and self.pure_product is not None:
+            self.name = self.pure_product.molecular_formula
 
 class Reactor_setup(ArchiveSection):
     m_def = Section(label_quantity='name')
@@ -323,3 +336,7 @@ class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSect
         type=np.dtype(
             np.float64), shape=['*'])
     products = SubSection(section_def=Product, repeats=True)
+
+    def normalize(self, archive, logger):
+        for product in self.products:
+            product.normalize(archive, logger)

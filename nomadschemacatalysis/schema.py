@@ -28,6 +28,9 @@ from .catalytic_measurement import (
     add_activity
     )
 
+from .catalytic_measurement import Product as Product_data
+
+
 from nomad.datamodel.results import Product, Reactant
 
 from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
@@ -36,9 +39,7 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import json
 
-from nomad.datamodel.metainfo.annotations import (
-    ELNAnnotation,
-)
+from nomad.datamodel.metainfo.annotations import ELNAnnotation
 
 m_package = Package(name='catalysis')
 
@@ -118,7 +119,7 @@ class SurfaceArea(ArchiveSection):
         type=str,
         shape=[],
         description="""
-          description of method to measure surface area
+          A description of the method used to measure the surface area of the sample.
           """,
         a_eln=dict(
             component='EnumEditQuantity', props=dict(
@@ -160,7 +161,7 @@ class CatalystSample(CompositeSystem, EntryData):
         type=str,
         shape=[],
         description="""
-        institution at which the sample is stored
+        The institution at which the sample is stored.
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
@@ -171,11 +172,11 @@ class CatalystSample(CompositeSystem, EntryData):
         type=str,
         shape=[],
         description="""
-          classification of catalyst type
+          A classification of the catalyst type.
           """,
         a_eln=dict(
             component='EnumEditQuantity', props=dict(
-                suggestions=['bulk catalyst', 'supported catalyst', 'single crystal',
+                suggestions=['bulk catalyst', 'supported catalyst', 'single crystal','metal','oxide',
                              '2D catalyst', 'other', 'unkown'])),
     )
 
@@ -196,9 +197,6 @@ class CatalystSample(CompositeSystem, EntryData):
 
         if self.catalyst_type is not None:
             archive.results.properties.catalytic.catalyst_synthesis.catalyst_type = self.catalyst_type
-        # if self.surface_area is not None:
-        #     archive.results.properties.catalytic.catalyst_characterization.surface_area = self.surface_area.surfacearea
-        #     archive.results.properties.catalytic.catalyst_characterization.method_surface_area = self.surface_area.method_surface_area_determination
         if self.preparation_details is not None:
             archive.results.properties.catalytic.catalyst_synthesis.preparation_method = self.preparation_details.preparation_method
 
@@ -206,7 +204,7 @@ class CatalyticReaction_core(ArchiveSection):
     sample_reference = Quantity(
         type=CatalystSample,
         description="""
-        link to a catalyst sample entry
+        The link to the entry of the catalyst sample used in the experiment.
         """,
         a_eln=dict(component='ReferenceEditQuantity')
     )
@@ -214,7 +212,7 @@ class CatalyticReaction_core(ArchiveSection):
     reaction_class = Quantity(
         type=str,
         description="""
-        highlevel classification of reaction
+        A highlevel classification of the studied reaction.
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(suggestions=[
             'Oxidation', 'Hydrogenation', 'Dehydrogenation', 'Cracking', 'Isomerisation', 'Coupling']
@@ -223,8 +221,8 @@ class CatalyticReaction_core(ArchiveSection):
     reaction_name = Quantity(
         type=str,
         description="""
-          name of reaction
-          """,
+        The name of the studied reaction.
+        """,
         a_eln=dict(
             component='EnumEditQuantity', props=dict(suggestions=[
                 'Alkane Oxidation', 'Oxidation of Ethane', 'Oxidation of Propane',
@@ -233,7 +231,7 @@ class CatalyticReaction_core(ArchiveSection):
 
     experiment_handbook = Quantity(
         description="""
-        was the experiment performed according to a handbook
+        In case the experiment was performed according to a handbook.
         """,
         type=str,
         shape=[],
@@ -244,7 +242,7 @@ class CatalyticReaction_core(ArchiveSection):
         type=str,
         shape=[],
         description="""
-        institution at which the measurement was performed
+        The institution at which the measurement was performed.
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['Fritz-Haber-Institut Berlin / Abteilung AC',
@@ -256,17 +254,15 @@ class CatalyticReaction_core(ArchiveSection):
         type=str,
         shape=[],
         description="""
-        person that performed or started the measurement
+        The person that performed or started the measurement.
         """,
         a_eln=dict(component='EnumEditQuantity')
     )
 
-# def make_plot(a,b):
-    
-#     return()
 
 class SimpleCatalyticReaction(Measurement, EntryData):
     reaction_condition = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
+
 
 class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
@@ -292,7 +288,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
     measurement_details = SubSection(section_def=Measurement)
 
     def normalize(self, archive, logger):
-
+        super(CatalyticReaction, self).normalize(archive, logger)
         if (self.data_file is None):  # and (self.data_file_h5 is None):
             return
 
@@ -409,7 +405,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 conversions.append(conversion)
 
             if col_split[0] == "S_p":  # selectivity
-                product = Product(name=col_split[1], selectivity=np.nan_to_num(data[col]))
+                product = Product_data(name=col_split[1], selectivity=np.nan_to_num(data[col]))
                 # for i, p in enumerate(rates):
                 #     if p.name == col_split[1]:
                 #         rate = rates.pop(i)
@@ -431,7 +427,9 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         self.reaction_conditions = feed
         self.reaction_results = cat_data
 
-        super(CatalyticReaction, self).normalize(archive, logger)
+        for reagent in self.reaction_conditions.reagents:
+            reagent.normalize(archive, logger)
+        self.reaction_results.normalize(archive, logger)
 
         add_activity(archive)
 
