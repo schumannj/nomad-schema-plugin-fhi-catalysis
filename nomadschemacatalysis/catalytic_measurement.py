@@ -22,7 +22,7 @@ from nomad.metainfo import (Quantity, SubSection, Section)
 from nomad.datamodel.data import ArchiveSection
 from nomad.datamodel.metainfo.basesections import (PubChemPureSubstanceSection, PureSubstanceComponent)
 
-from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reactivity)
+from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reaction)
 
 from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
 import plotly.express as px
@@ -42,8 +42,8 @@ def add_activity(archive):
         archive.results.properties = Properties()
     if not archive.results.properties.catalytic:
         archive.results.properties.catalytic = CatalyticProperties()
-    if not archive.results.properties.catalytic.reactivity:
-        archive.results.properties.catalytic.reactivity = Reactivity()
+    if not archive.results.properties.catalytic.reaction:
+        archive.results.properties.catalytic.reaction = Reaction()
 
 class Reagent(ArchiveSection):
     m_def = Section(label_quantity='name', description='a chemical substance present in the initial reaction mixture')
@@ -57,10 +57,10 @@ class Reagent(ArchiveSection):
         description='Flow rate of reactant in feed.',
         a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
-    pure_reagent = SubSection(section_def=PubChemPureSubstanceSection)
+    pure_component = SubSection(section_def=PubChemPureSubstanceSection)
 
 
-    def normalize(self, archive, logger: 'BoundLogger') -> None:
+    def normalize(self, archive, logger):
         '''
         The normalizer for the `PureSubstanceComponent` class. If none is set, the
         normalizer will set the name of the component to be the molecular formula of the
@@ -73,14 +73,27 @@ class Reagent(ArchiveSection):
         '''
         super(Reagent, self).normalize(archive, logger)
         
-        if self.name and self.pure_reagent is None:
-            self.pure_reagent = PubChemPureSubstanceSection(
+        if self.name and self.pure_component is None:
+            self.pure_component = PubChemPureSubstanceSection(
                 name=self.name
             )
-            self.pure_reagent.normalize(archive, logger)
+            self.pure_component.normalize(archive, logger)
         
-        if self.name is None and self.pure_reagent is not None:
-            self.name = self.pure_reagent.molecular_formula
+        if self.pure_component is not None and self.pure_component.iupac_name is None:
+            if self.pure_component.molecular_formula == 'CO2':
+                self.pure_component.iupac_name = 'carbon dioxide'
+
+        if self.name == "CO" or self.name == "carbon monoxide":
+            self.pure_component.iupac_name = 'carbon monoxide'
+            self.pure_component.molecular_formula = 'CO'
+            self.pure_component.molecular_mass = 28.01
+            self.pure_component.smile = 'C#O'
+            self.pure_component.inchi = 'InChI=1S/CO/c1-2'
+            self.pure_component.inchi_key = 'UGFAIRIUMAVXCW-UHFFFAOYSA-N'
+            self.pure_component.cas_registry_number = '630-08-0'
+
+        if self.name is None and self.pure_component is not None:
+            self.name = self.pure_component.molecular_formula
         
 
 class Conversion(ArchiveSection):
@@ -97,6 +110,11 @@ class Conversion(ArchiveSection):
 class Reactant(Reagent):
     m_def = Section(label_quantity='name', description='A reagent that has a conversion in a reaction that is not null')
 
+    gas_concentration_out = Quantity(
+        type=np.float64, shape=['*'],
+        description='Volumetric fraction of reactant in outlet.', 
+        a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    
     conversion = SubSection(section_def=Conversion)
 
 class ReactionConditions(PlotSection, ArchiveSection):
@@ -136,19 +154,31 @@ class ReactionConditions(PlotSection, ArchiveSection):
         super(ReactionConditions, self).normalize(archive, logger)
         for reagent in self.reagents:
             reagent.normalize(archive, logger)
-        
+
         if self.runs is None and self.set_temperature is not None:
             number_of_runs=len(self.set_temperature)
             self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
         else:
             number_of_runs=len(self.runs)
-        
+
         if self.set_pressure is not None:
             if len(self.set_pressure) == 1:
-                set_pressure=[]
-                for n in range(number_of_runs):
-                    set_pressure.append(self.set_pressure)
-                self.set_pressure=set_pressure
+                for n in range(number_of_runs-1):
+                    self.set_pressure=np.append(self.set_pressure, self.set_pressure[0])
+
+        if self.set_total_flow_rate is None and self.reagents is not None:
+            self.set_total_flow_rate = np.array([])
+            for n in range(number_of_runs):
+                total_flow_rate=0
+                for reagent in self.reagents:
+                    if reagent.flow_rate is not None:
+                        if len(reagent.flow_rate) == 1:
+                            for m in range(number_of_runs-1):
+                                reagent.flow_rate=np.append(reagent.flow_rate, reagent.flow_rate[0])
+                        elif len(reagent.flow_rate) != number_of_runs:
+                            raise ValueError('The number of flow rates is not equal to the number of runs')
+                        total_flow_rate+=reagent.flow_rate[n]
+                self.set_total_flow_rate=np.append(self.set_total_flow_rate, total_flow_rate)
 
         if self.set_total_flow_rate is not None:
             if len(self.set_total_flow_rate) == 1:
@@ -157,90 +187,74 @@ class ReactionConditions(PlotSection, ArchiveSection):
                     set_total_flow_rate.append(self.set_total_flow_rate)
                 self.set_total_flow_rate=set_total_flow_rate
 
+        for reagent in self.reagents:
+            if reagent.gas_concentration_in is not None:
+                if len(reagent.gas_concentration_in) == 1:
+                    gas_concentration_in=[]
+                    for n in range(number_of_runs):
+                        gas_concentration_in.append(reagent.gas_concentration_in)
+                    reagent.gas_concentration_in=gas_concentration_in
+                elif len(reagent.gas_concentration_in) != number_of_runs:
+                    raise ValueError('The number of gas concentrations is not equal to the number of runs')
+            if reagent.flow_rate is not None:
+                if len(reagent.flow_rate) == 1:
+                    for n in range(number_of_runs):
+                        reagent.flow_rate.append(reagent.flow_rate[0])
+                elif len(reagent.flow_rate) != number_of_runs:
+                    raise ValueError('The number of flow rates is not equal to the number of runs')
 
         add_activity(archive)
 
         if self.set_temperature is not None:
-            archive.results.properties.catalytic.reactivity.test_temperatures = self.set_temperature
+            archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
         if self.set_pressure is not None:
-            archive.results.properties.catalytic.reactivity.pressure = self.set_pressure
+            archive.results.properties.catalytic.reaction.pressure = self.set_pressure
         if self.set_total_flow_rate is not None:
-            archive.results.properties.catalytic.reactivity.flow_rate = self.set_total_flow_rate
+            archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
         if self.weight_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reactivity.weight_hourly_space_velocity = self.weight_hourly_space_velocity
+            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
         if self.reagents is not None:
-            archive.results.properties.catalytic.reactivity.reactants = self.reagents
-            #archive.results.properties.catalytic.reactivity.reactants.gas_consentration_in = self.reagents.gas_concentration_in
-    
+            archive.results.properties.catalytic.reaction.reactants = self.reagents
+
         #Figures definitions:
         if self.time_on_stream is not None:
             x=self.time_on_stream.to('hour')
             x_text="time (h)"
         else:
             x=self.runs
-            x_text="steps" 
+            x_text="steps"
 
         if self.set_temperature is not None:
             figT = px.scatter(x=x, y=self.set_temperature.to('kelvin'))
             figT.update_layout(title_text="Temperature")
-            figT.update_xaxes(title_text=x_text,) 
+            figT.update_xaxes(title_text=x_text,)
             figT.update_yaxes(title_text="Temperature (K)")
             self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
-        
+
+        if self.set_pressure is not None:
+            figP = px.scatter(x=x, y=self.set_pressure.to('bar'))
+            figP.update_layout(title_text="Pressure")
+            figP.update_xaxes(title_text=x_text,)
+            figP.update_yaxes(title_text="pressure (bar)")
+            self.figures.append(PlotlyFigure(label='Pressure', figure=figP.to_plotly_json()))
+
         if self.reagents is not None and (self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None):
             fig5 = go.Figure()
-            for i,c in enumerate(self.reagents):
-                if self.reagents[0].flow_rate is not None:
-                    fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].flow_rate, name=self.reaction_conditions.reagents[i].name))
-                    y5_text="Flow rates ()"
+            for i,r in enumerate(self.reagents):
+                if r.flow_rate is not None:
+                    y=r.flow_rate.to('mL/minute')
+                    fig5.add_trace(go.Scatter(x=x, y=y, name=r.name))
+                    y5_text="Flow rates (mL/min)"
                     if self.set_total_flow_rate is not None and i == 0:
                         fig5.add_trace(go.Scatter(x=x,y=self.set_total_flow_rate, name='Total Flow Rates'))
                 elif self.reagents[0].gas_concentration_in is not None:
                     fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].gas_concentration_in, name=self.reagents[i].name))    
                     y5_text="gas concentrations"
             fig5.update_layout(title_text="Gas feed", showlegend=True)
-            fig5.update_xaxes(title_text=x_text) 
+            fig5.update_xaxes(title_text=x_text)
             fig5.update_yaxes(title_text=y5_text)
             self.figures.append(PlotlyFigure(label='Feed Gas', figure=fig5.to_plotly_json()))
 
-
-
-class Feed(ReactionConditions, ArchiveSection):  
-
-
-    diluent = Quantity(
-        type=str,
-        shape=[],
-        description="""
-        A component that is mixed with the catalyst to dilute and prevent transport
-        limitations and hot spot formation.
-        """,
-        a_eln=dict(component='EnumEditQuantity', props=dict(
-            suggestions=['SiC', 'SiO2', 'unknown']))
-    )
-    diluent_sievefraction_high = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    diluent_sievefraction_low = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    catalyst_mass = Quantity(
-        type=np.float64, shape=[], unit='g',
-        a_eln=dict(component='NumberEditQuantity'))
-    apparent_catalyst_volume = Quantity(
-        type=np.float64, shape=[], unit='mL', a_eln=ELNAnnotation(component='NumberEditQuantity'))
-    catalyst_sievefraction_high = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    catalyst_sievefraction_low = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    particle_size = Quantity(
-        type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
-    
-    def normalize(self, archive, logger):
-        super(Feed, self).normalize(archive, logger)
 
 class Rates(ArchiveSection):
     m_def = Section(label_quantity='name')
@@ -271,15 +285,19 @@ class Rates(ArchiveSection):
         description='The turn oder frequency, calculated from mol of reactant or product, per number of sites, over time.')
 
 
-class Product(Rates, ArchiveSection):
-    m_def = Section(label_quantity='name')
+class Product(Reagent, ArchiveSection):
+    m_def = Section(label_quantity='name', description='a chemical substance formed in the reaction mixture during a reaction')
+
+    gas_concentration_out = Quantity(
+        type=np.float64, shape=['*'],
+        description='Volumetric fraction of reactant in outlet.', 
+        a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
     selectivity = Quantity(type=np.float64, shape=['*'])
     product_yield = Quantity(type=np.float64, shape=['*'])
-
-    pure_product = SubSection(section_def=PubChemPureSubstanceSection)
-
-    def normalize(self, archive, logger: 'BoundLogger') -> None:
+    rates = SubSection(section_def=Rates)
+    
+    def normalize(self, archive, logger):
         '''
         The normalizer for the adjusted `PureSubstanceComponent` class. If none is set, the
         normalizer will set the name of the component to be the molecular formula of the
@@ -291,15 +309,7 @@ class Product(Rates, ArchiveSection):
             logger ('BoundLogger'): A structlog logger.
         '''
         super(Product, self).normalize(archive, logger)
-        
-        if self.name and self.pure_product is None:
-            self.pure_product = PubChemPureSubstanceSection(
-                name=self.name
-            )
-            self.pure_product.normalize(archive, logger)
-        
-        if self.name is None and self.pure_product is not None:
-            self.name = self.pure_product.molecular_formula
+
 
 class Reactor_setup(ArchiveSection):
     m_def = Section(label_quantity='name')
@@ -329,14 +339,17 @@ class CatalyticReactionData_core(ArchiveSection):
     reactants_conversions = SubSection(section_def=Conversion, repeats=True)
     rates = SubSection(section_def=Rates, repeats=True)
 
+    products = SubSection(section_def=Reagent, repeats=True)
+
+    def normalize(self, archive, logger):
+        
+        if self.products is not None:
+            for product in self.products:
+                product.normalize(archive, logger)
 
 class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSection):
 
     c_balance = Quantity(
         type=np.dtype(
             np.float64), shape=['*'])
-    products = SubSection(section_def=Product, repeats=True)
 
-    def normalize(self, archive, logger):
-        for product in self.products:
-            product.normalize(archive, logger)
