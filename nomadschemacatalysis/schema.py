@@ -9,9 +9,9 @@ from nomad.metainfo import (
 
 from nomad.units import ureg
 
-from nomad.datamodel.metainfo.eln import Measurement
+# from nomad.datamodel.metainfo.eln import Measurement
 
-from nomad.datamodel.metainfo.basesections import CompositeSystem, System
+from nomad.datamodel.metainfo.basesections import CompositeSystem, Measurement, CompositeSystemReference
 
 from nomad.datamodel.data import ArchiveSection
 
@@ -373,6 +373,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
         data.dropna(axis=1, how='all', inplace=True)
         feed = Feed()
+        reactor_filling = ReactorFilling()
         cat_data = CatalyticReactionData()
         reagents = []
         reagent_names = []
@@ -407,7 +408,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 reagents.append(reagent)
             if col_split[0] == "mass":
                 catalyst_mass_vector = data[col]
-                feed.catalyst_mass = catalyst_mass_vector[0]
+                reactor_filling.catalyst_mass = catalyst_mass_vector[0]
 
             if col_split[0] == "temperature":
                 if "K" in col_split[1]:
@@ -493,6 +494,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         cat_data.rates = rates
         self.reaction_conditions = feed
         self.reaction_results = cat_data
+        self.reactor_filling = reactor_filling
 
         for reagent in self.reaction_conditions.reagents:
             reagent.normalize(archive, logger)
@@ -630,8 +632,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
     reactor_setup = SubSection(section_def=Reactor_setup)
     reactor_filling = SubSection(section_def=ReactorFilling)
 
-    pretreatment = SubSection(section_def=Feed)
-    reaction_conditions = SubSection(section_def=Feed)
+    pretreatment = SubSection(section_def=ReactionConditions)
+    reaction_conditions = SubSection(section_def=ReactionConditions)
     reaction_results = SubSection(section_def=CatalyticReactionData_core)
 
     def normalize(self, archive, logger):
@@ -651,33 +653,36 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
                 data = h5py.File(f.name, 'r')
 
         cat_data=CatalyticReactionData_core()
-        feed=Feed()
+        feed=ReactionConditions()
         reactor_setup=Reactor_setup()
         reactor_filling=ReactorFilling()
-        pretreatment=Feed()
-        measurement_details=Measurement()
+        pretreatment=ReactionConditions()
+        sample=CompositeSystemReference()
         conversions=[]
         conversions2=[]
         rates=[]
         reagents=[]
         pre_reagents=[]
         time_on_stream=[]
-        method=list(data['Analysed Data'].keys())
+        time_on_stream_reaction=[]
+        method=list(data['Sorted Data'].keys())
         for i in method:
             methodname=i
         header=data["Header"][methodname]["Header"]
         reactor_filling.catalyst_mass = header["Catalyst Mass [mg]"]/1000
         feed.sampling_frequency = header["Temporal resolution [Hz]"]*ureg.hertz
+        reactor_setup.name = 'Haber'
+        reactor_setup.reactor_type = 'plug flow reactor'
         reactor_setup.reactor_volume = header["Bulk volume [mln]"]
         reactor_setup.reactor_cross_section_area = (header['Inner diameter of reactor (D) [mm]']/2)**2 * np.pi
         reactor_setup.reactor_diameter = header['Inner diameter of reactor (D) [mm]']
-        reactor_setup.diluent = header['Diluent material'][0].decode()
-        reactor_setup.diluent_sievefraction_high = header['Diluent Sieve fraction high [um]']
-        reactor_setup.diluent_sievefraction_low = header['Diluent Sieve fraction low [um]']
-        reactor_setup.catalyst_mass = header['Catalyst Mass [mg]'][0]*ureg.milligram
-        reactor_setup.catalyst_sievefraction_high = header['Sieve fraction high [um]']
-        reactor_setup.catalyst_sievefraction_low = header['Sieve fraction low [um]']
-        reactor_setup.particle_size = header['Partical size (Dp) [mm]']
+        reactor_filling.diluent = header['Diluent material'][0].decode()
+        reactor_filling.diluent_sievefraction_upper_limit = header['Diluent Sieve fraction high [um]']
+        reactor_filling.diluent_sievefraction_lower_limit = header['Diluent Sieve fraction low [um]']
+        reactor_filling.catalyst_mass = header['Catalyst Mass [mg]'][0]*ureg.milligram
+        reactor_filling.catalyst_sievefraction_upper_limit = header['Sieve fraction high [um]']
+        reactor_filling.catalyst_sievefraction_lower_limit = header['Sieve fraction low [um]']
+        reactor_filling.particle_size = header['Particle size (Dp) [mm]']
 
         self.experimenter = header['User'][0].decode()
 
@@ -685,11 +690,11 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         pretreatment.set_temperature = pre["Catalyst Temperature [C°]"]*ureg.celsius
         for col in pre.dtype.names :
             if col == 'Massflow3 (H2) Target Calculated Realtime Value [mln|min]':
-                reagent = Reagent(name='hydrogen', flow_rate=pre[col])
-                reagents.append(reagent)
+                pre_reagent = Reagent(name='hydrogen', flow_rate=pre[col])
+                pre_reagents.append(pre_reagent)
             if col == 'Massflow5 (Ar) Target Calculated Realtime Value [mln|min]':
-                reagent = Reagent(name='argon', flow_rate=pre[col])
-                reagents.append(reagent)
+                pre_reagent = Reagent(name='argon', flow_rate=pre[col])
+                pre_reagents.append(pre_reagent)
             # if col.startswith('Massflow'):
             #     col_split = col.split("(")
             #     col_split1 = col_split[1].split(")")
@@ -697,16 +702,22 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
             #         reagent = Reagent(name=col_split1[0], flow_rate=pre[col])
             #         pre_reagents.append(reagent)
         pretreatment.reagents = pre_reagents
-        pretreatment.flow_rates_total = pre['MassFlow (Total Gas) [mln|min]']
+        pretreatment.set_total_flow_rate = pre['Target Total Gas (After Reactor) [mln|min]']
         number_of_runs = len(pre["Catalyst Temperature [C°]"])
         pretreatment.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
+
+        time=pre['Relative Time [Seconds]']
+        for i in range(len(time)):
+            t = float(time[i].decode("UTF-8"))-float(time[0].decode("UTF-8"))
+            time_on_stream.append(t)
+        pretreatment.time_on_stream = time_on_stream*ureg.sec
 
         analysed=data["Sorted Data"][methodname]["NH3 Decomposition"]
         
         for col in analysed.dtype.names :
             if col.endswith('Target Calculated Realtime Value [mln|min]'):
                 name_split=col.split("(")[0]
-                gas_name=name_split[1].split(")")[1]
+                gas_name=name_split[1].split(")")
                 if 'NH3' in gas_name:
                     reagent = Reagent(name='NH3', flow_rate=analysed[col])
                     reagents.append(reagent)
@@ -725,7 +736,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         conversions.append(conversion)
         conversion2 = Reactant(name='NH3', conversion=analysed['NH3 Conversion [%]'])
         conversions2.append(conversion2)
-        rate = Rates(name='H2', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']))
+        rate = Rates(name='molecular hydrogen', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']*ureg.mmol/ureg.g/ureg.minute))
         rates.append(rate)
         feed.set_temperature = analysed['Catalyst Temperature [C°]']*ureg.celsius
         cat_data.temperature = analysed['Catalyst Temperature [C°]']*ureg.celsius
@@ -735,28 +746,35 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         time=analysed['Relative Time [Seconds]']
         for i in range(len(time)):
             t = float(time[i].decode("UTF-8"))-float(time[0].decode("UTF-8"))
-            time_on_stream.append(t)
-        cat_data.time_on_stream = time_on_stream*ureg.sec
+            time_on_stream_reaction.append(t)
+        cat_data.time_on_stream = time_on_stream_reaction*ureg.sec
 
         cat_data.reactants_conversions = conversions
         cat_data.rates = rates
 
-        measurement_details.name = methodname
-        measurement_details.datetime = pre['Date'][0].decode()
+        self.method = methodname
+        self.datetime = pre['Date'][0].decode()
+
+        sample.reference = self.sample_reference
+        sample.name = 'catalyst'
+        sample.lab_id = str(data["Header"]["Header"]['SampleID'][0])
 
         self.reaction_results = cat_data
         self.reaction_conditions = feed
         self.reactor_setup = reactor_setup
         self.pretreatment=pretreatment
-        self.measurement_details=measurement_details
+        self.reactor_filling=reactor_filling
+
+        self.samples.append(sample)
 
         add_activity(archive)
 
         
         products_results = []
         for i in ['molecular nitrogen', 'molecular hydrogen']:
-            product = Product(name=i, selectivity=100)
+            product = Product(name=i)
             products_results.append(product)
+        self.products = products_results
 
         if conversions2 is not None:
             archive.results.properties.catalytic.reaction.reactants = conversions2
@@ -766,6 +784,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
             archive.results.properties.catalytic.reaction.pressure = cat_data.pressure
         # if cat_data.products is not None:
         archive.results.properties.catalytic.reaction.products = products_results
+        if rates is not None:
+            archive.results.properties.catalytic.reaction.rates = rates
         if self.reaction_name is not None:
             archive.results.properties.catalytic.reaction.name = self.reaction_name
             archive.results.properties.catalytic.reaction.type = self.reaction_class
@@ -775,7 +795,6 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
                 archive.results.properties.catalytic.catalyst_characterization = CatalystCharacterization()
             if not archive.results.properties.catalytic.catalyst_synthesis:
                 archive.results.properties.catalytic.catalyst_synthesis = CatalystSynthesis()
-
             if self.sample_reference.catalyst_type is not None:
                 archive.results.properties.catalytic.catalyst_synthesis.catalyst_type = self.sample_reference.catalyst_type
             if self.sample_reference.preparation_details is not None:
