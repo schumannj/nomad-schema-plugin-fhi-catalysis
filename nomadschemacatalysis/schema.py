@@ -666,7 +666,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         for i in method:
             methodname=i
         header=data["Header"][methodname]["Header"]
-        reactor_filling.catalyst_mass = header["Mass [mg]"]/1000
+        reactor_filling.catalyst_mass = header["Catalyst Mass [mg]"]/1000
         feed.sampling_frequency = header["Temporal resolution [Hz]"]*ureg.hertz
         reactor_setup.reactor_volume = header["Bulk volume [mln]"]
         reactor_setup.reactor_cross_section_area = (header['Inner diameter of reactor (D) [mm]']/2)**2 * np.pi
@@ -674,38 +674,53 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         reactor_setup.diluent = header['Diluent material'][0].decode()
         reactor_setup.diluent_sievefraction_high = header['Diluent Sieve fraction high [um]']
         reactor_setup.diluent_sievefraction_low = header['Diluent Sieve fraction low [um]']
-        reactor_setup.catalyst_mass = header['Mass [mg]'][0]*ureg.milligram
+        reactor_setup.catalyst_mass = header['Catalyst Mass [mg]'][0]*ureg.milligram
         reactor_setup.catalyst_sievefraction_high = header['Sieve fraction high [um]']
         reactor_setup.catalyst_sievefraction_low = header['Sieve fraction low [um]']
         reactor_setup.particle_size = header['Partical size (Dp) [mm]']
 
         self.experimenter = header['User'][0].decode()
 
-        pre=data["Analysed Data"][methodname]["H2 Reduction"]
+        pre=data["Sorted Data"][methodname]["H2 Reduction"]
         pretreatment.set_temperature = pre["Catalyst Temperature [C°]"]*ureg.celsius
         for col in pre.dtype.names :
-            if col.startswith('Massflow'):
-                col_split = col.split("(")
-                col_split1 = col_split[1].split(")")
-                if col_split1[1].startswith(' actual'): 
-                    reagent = Reagent(name=col_split1[0], flow_rate=pre[col])
-                    pre_reagents.append(reagent)
+            if col == 'Massflow3 (H2) Target Calculated Realtime Value [mln|min]':
+                reagent = Reagent(name='hydrogen', flow_rate=pre[col])
+                reagents.append(reagent)
+            if col == 'Massflow5 (Ar) Target Calculated Realtime Value [mln|min]':
+                reagent = Reagent(name='argon', flow_rate=pre[col])
+                reagents.append(reagent)
+            # if col.startswith('Massflow'):
+            #     col_split = col.split("(")
+            #     col_split1 = col_split[1].split(")")
+            #     if col_split1[1].startswith(' actual'): 
+            #         reagent = Reagent(name=col_split1[0], flow_rate=pre[col])
+            #         pre_reagents.append(reagent)
         pretreatment.reagents = pre_reagents
         pretreatment.flow_rates_total = pre['MassFlow (Total Gas) [mln|min]']
         number_of_runs = len(pre["Catalyst Temperature [C°]"])
         pretreatment.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
 
-        analysed=data["Analysed Data"][methodname]["NH3 Decomposition"]
+        analysed=data["Sorted Data"][methodname]["NH3 Decomposition"]
         
         for col in analysed.dtype.names :
-            if col.startswith('Massflow'):
-                col_split = col.split("(")
-                col_split1 = col_split[1].split(")")
-                if col_split1[1].startswith(' actual'): 
-                    reagent = Reagent(name=col_split1[0], flow_rate=analysed[col])
+            if col.endswith('Target Calculated Realtime Value [mln|min]'):
+                name_split=col.split("(")[0]
+                gas_name=name_split[1].split(")")[1]
+                if 'NH3' in gas_name:
+                    reagent = Reagent(name='NH3', flow_rate=analysed[col])
                     reagents.append(reagent)
+                else:
+                    reagent = Reagent(name=gas_name, flow_rate=analysed[col])
+                    reagents.append(reagent)
+            # if col.startswith('Massflow'):
+            #     col_split = col.split("(")
+            #     col_split1 = col_split[1].split(")")
+            #     if col_split1[1].startswith(' actual'): 
+            #         reagent = Reagent(name=col_split1[0], flow_rate=analysed[col])
+            #         reagents.append(reagent)
         feed.reagents = reagents
-        feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
+        # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
         conversion = Conversion(name='NH3', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
         conversions.append(conversion)
         conversion2 = Reactant(name='NH3', conversion=analysed['NH3 Conversion [%]'])
@@ -752,8 +767,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         # if cat_data.products is not None:
         archive.results.properties.catalytic.reaction.products = products_results
         if self.reaction_name is not None:
-            archive.results.properties.catalytic.reaction.reaction_name = self.reaction_name
-            archive.results.properties.catalytic.reaction.reaction_class = self.reaction_class
+            archive.results.properties.catalytic.reaction.name = self.reaction_name
+            archive.results.properties.catalytic.reaction.type = self.reaction_class
 
         if self.sample_reference is not None:
             if not archive.results.properties.catalytic.catalyst_characterization:
