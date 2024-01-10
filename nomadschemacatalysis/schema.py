@@ -348,6 +348,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         a_browser=dict(adaptor='RawFileAdaptor'))
 
     reactor_setup = SubSection(section_def=Reactor_setup)
+    reactor_filling = SubSection(section_def=ReactorFilling)
 
     reaction_conditions = SubSection(section_def=Feed, a_eln=ELNAnnotation(label='Reaction Conditions'))
     reaction_results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
@@ -418,6 +419,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
             if col_split[0] == "TOS":
                 cat_data.time_on_stream = data[col]
+                feed.time_on_stream = data[col]
 
             if col_split[0] == "C-balance":
                 cat_data.c_balance = np.nan_to_num(data[col])
@@ -509,8 +511,9 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         product_results=[]
         for i in products:
             print(i)
-            if i.pure_component.iupac_name is not None:
-                i.name = i.pure_component.iupac_name
+            if i.pure_component is not None:
+                if i.pure_component.iupac_name is not None:
+                    i.name = i.pure_component.iupac_name
             prod = Product(name=i.name, selectivity=i.selectivity)
             product_results.append(prod)
 
@@ -520,10 +523,14 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             archive.results.properties.catalytic.reaction.reactants = conversions2
         if cat_data.temperature is not None:
             archive.results.properties.catalytic.reaction.temperatures = cat_data.temperature
+        if cat_data.temperature is None and feed.set_temperature is not None:
+            archive.results.properties.catalytic.reaction.temperatures = feed.set_temperature
         if cat_data.pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = cat_data.pressure
-        if feed.space_velocity is not None:
-            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = feed.space_velocity
+        elif feed.set_pressure is not None:
+            archive.results.properties.catalytic.reaction.pressure = feed.set_pressure
+        if feed.gas_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = feed.gas_hourly_space_velocity
         if products is not None:
             archive.results.properties.catalytic.reaction.products = product_results
         if self.reaction_name is not None:

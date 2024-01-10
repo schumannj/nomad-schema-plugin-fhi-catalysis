@@ -73,6 +73,13 @@ class Reagent(ArchiveSection):
         '''
         super(Reagent, self).normalize(archive, logger)
         
+        if self.name in ['C5-1', 'C6-1', 'nC5', 'nC6','Unknown','inert']:
+            return
+        elif self.name == 'n-Butene':
+            self.name = '1-butene'
+        elif self.name == 'MAN':
+            self.name = 'maleic anhydride'
+
         if self.name and self.pure_component is None:
             self.pure_component = PubChemPureSubstanceSection(
                 name=self.name
@@ -90,7 +97,7 @@ class Reagent(ArchiveSection):
             self.pure_component.smile = 'C#O'
             self.pure_component.inchi = 'InChI=1S/CO/c1-2'
             self.pure_component.inchi_key = 'UGFAIRIUMAVXCW-UHFFFAOYSA-N'
-            self.pure_component.cas_registry_number = '630-08-0'
+            self.pure_component.cas_number = '630-08-0'
 
         if self.name is None and self.pure_component is not None:
             self.name = self.pure_component.molecular_formula
@@ -157,9 +164,23 @@ class ReactionConditions(PlotSection, ArchiveSection):
 
         if self.runs is None and self.set_temperature is not None:
             number_of_runs=len(self.set_temperature)
-            self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
-        else:
+        elif self.runs is None and self.set_pressure is not None:
+            number_of_runs=len(self.set_pressure)
+        elif self.runs is None and self.set_total_flow_rate is not None:
+            number_of_runs=len(self.set_total_flow_rate)
+        elif self.runs is None and self.gas_hourly_space_velocity is not None:
+            number_of_runs=len(self.gas_hourly_space_velocity)
+        elif self.runs is None and self.weight_hourly_space_velocity is not None:
+            number_of_runs=len(self.weight_hourly_space_velocity)
+        elif self.runs is None and self.time_on_stream is not None:
+            number_of_runs=len(self.time_on_stream)
+        elif self.runs is None and self.reagents[0].gas_concentration_in is not None:
+            number_of_runs=len(self.reagents[0].gas_concentration_in)
+        elif self.runs is not None:
             number_of_runs=len(self.runs)
+        else:
+            number_of_runs=1
+        self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
 
         if self.set_pressure is not None:
             if len(self.set_pressure) == 1:
@@ -195,7 +216,9 @@ class ReactionConditions(PlotSection, ArchiveSection):
                         gas_concentration_in.append(reagent.gas_concentration_in)
                     reagent.gas_concentration_in=gas_concentration_in
                 elif len(reagent.gas_concentration_in) != number_of_runs:
+                    print(len(reagent.gas_concentration_in), number_of_runs)
                     raise ValueError('The number of gas concentrations is not equal to the number of runs')
+            
             if reagent.flow_rate is not None:
                 if len(reagent.flow_rate) == 1:
                     for n in range(number_of_runs):
