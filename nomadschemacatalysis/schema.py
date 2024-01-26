@@ -16,7 +16,7 @@ from nomad.datamodel.metainfo.basesections import CompositeSystem, Measurement, 
 from nomad.datamodel.data import ArchiveSection
 
 from nomad.datamodel.results import (Results, Material, Properties, CatalyticProperties,
-                                     CatalystCharacterization, CatalystSynthesis, Product, Reactant)
+                                     CatalystCharacterization, CatalystSynthesis, Product, Reactant, ReactionConditionsSimple)
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
@@ -240,7 +240,15 @@ class ReactorFilling(ArchiveSection):
     def normalize(self, archive, logger):
         super(ReactorFilling, self).normalize(archive, logger)
 
+        if self.sample_reference is None:
+            if self.m_root().data.samples is not None:
+                self.sample_reference = self.m_root().data.samples[0].reference
         if self.sample_reference is not None:
+            if self.m_root().data.samples == []:
+                sample1_reference = CompositeSystemReference(reference=self.sample_reference)
+                self.m_root().data.samples.append(sample1_reference)
+            elif self.m_root().data.samples.reference is None:
+                self.m_root().data.samples.reference = self.sample_reference
             self.sample_reference.normalize(archive, logger)
 
         if self.catalyst_name is None and self.sample_reference is not None:
@@ -325,7 +333,7 @@ class SimpleCatalyticReaction(Measurement, EntryData):
         label='Heterogeneous Catalysis - Simple Catalytic Reaction for measurment plugin',
         categories=[UseCaseElnCategory]
     )
-    reaction_condition = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
+    reaction_condition = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
 
 
 class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
