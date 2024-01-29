@@ -1,4 +1,4 @@
-# NOMAD's schema example plugin
+# NOMAD's schema catalysis plugin
 
 ## Getting started
 
