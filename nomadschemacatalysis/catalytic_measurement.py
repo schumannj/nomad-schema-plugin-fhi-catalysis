@@ -79,7 +79,8 @@ class Reagent(ArchiveSection):
             self.name = '1-butene'
         elif self.name == 'MAN':
             self.name = 'maleic anhydride'
-
+        elif self.name == 'acetic_acid':
+            self.name = 'acetic acid'
         if self.name and self.pure_component is None:
             self.pure_component = PubChemPureSubstanceSection(
                 name=self.name

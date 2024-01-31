@@ -417,8 +417,10 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 reagents.append(reagent)
             if col_split[0] == "mass":
                 catalyst_mass_vector = data[col]
-                reactor_filling.catalyst_mass = catalyst_mass_vector[0]
-
+                if '(g)' in col_split[1]: 
+                    reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.gram
+                else:
+                    reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.milligram
             if col_split[0] == "temperature":
                 if "K" in col_split[1]:
                     cat_data.temperature = np.nan_to_num(data[col])
@@ -504,7 +506,9 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         cat_data.rates = rates
         self.reaction_conditions = feed
         self.reaction_results = cat_data
-        self.reactor_filling = reactor_filling
+        if self.reactor_filling is None and reactor_filling is not None:
+            reactor_filling = self.reactor_filling
+
 
         for reagent in self.reaction_conditions.reagents:
             reagent.normalize(archive, logger)
@@ -747,9 +751,9 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
             #         reagents.append(reagent)
         feed.reagents = reagents
         # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
-        conversion = Conversion(name='NH3', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
+        conversion = Conversion(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
         conversions.append(conversion)
-        conversion2 = Reactant(name='NH3', conversion=analysed['NH3 Conversion [%]'])
+        conversion2 = Reactant(name='ammonia', conversion=analysed['NH3 Conversion [%]'])
         conversions2.append(conversion2)
         rate = Rates(name='molecular hydrogen', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']*ureg.mmol/ureg.g/ureg.minute))
         rates.append(rate)
