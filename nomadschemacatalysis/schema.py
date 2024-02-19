@@ -16,11 +16,11 @@ from nomad.datamodel.metainfo.basesections import CompositeSystem, Measurement, 
 from nomad.datamodel.data import ArchiveSection
 
 from nomad.datamodel.results import (Results, Material, Properties, CatalyticProperties,
-                                     CatalystCharacterization, CatalystSynthesis, Product, Reactant, ReactionConditionsSimple)
+                                     CatalystCharacterization, CatalystSynthesis, Product, Reactant)
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, CatalyticReactionData_core, Reagent, Conversion, Rates, Reactor_setup, ReactionConditions,
+    CatalyticReactionData, CatalyticReactionData_core, Reagent, Conversion, Rates, Reactor_setup, ReactionConditions, ReactionConditionsSimple,
     add_activity
     )
 
@@ -334,6 +334,9 @@ class SimpleCatalyticReaction(Measurement, EntryData):
         categories=[UseCaseElnCategory]
     )
     reaction_condition = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
+    reactor_filling = SubSection(section_def=ReactorFilling)
+    reactor_setup = SubSection(section_def=Reactor_setup)
+    reaction_results = SubSection(section_def=CatalyticReactionData_core, a_eln=ELNAnnotation(label='Reaction Results'))
 
 
 class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
@@ -559,17 +562,17 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             if self.sample_reference.surface is not None:
                 archive.results.properties.catalytic.catalyst_characterization.surface_area = self.sample_reference.surface.surface_area
 
-        if self.sample_reference.elemental_composition is not None:
-            if not archive.results:
-                archive.results = Results()
-            if not archive.results.material:
-                archive.results.material = Material()
+            if self.sample_reference.elemental_composition is not None:
+                if not archive.results:
+                    archive.results = Results()
+                if not archive.results.material:
+                    archive.results.material = Material()
 
-            try:
-                archive.results.material.elemental_composition = self.sample_reference.elemental_composition
+                try:
+                    archive.results.material.elemental_composition = self.sample_reference.elemental_composition
   
-            except Exception as e:
-                logger.warn('Could not analyse elemental compostion.', exc_info=e)
+                except Exception as e:
+                    logger.warn('Could not analyse elemental compostion.', exc_info=e)
         
         if self.reaction_results.time_on_stream is not None:
             x=self.reaction_results.time_on_stream.to('hour')

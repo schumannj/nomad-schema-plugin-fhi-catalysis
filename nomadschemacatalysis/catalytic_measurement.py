@@ -18,7 +18,7 @@
 
 import numpy as np
 
-from nomad.metainfo import (Quantity, SubSection, Section)
+from nomad.metainfo import (Quantity, SubSection, Section, Datetime,)
 from nomad.datamodel.data import ArchiveSection
 from nomad.datamodel.metainfo.basesections import (PubChemPureSubstanceSection)
 
@@ -187,16 +187,16 @@ class CatalyticSectionConditions_static(ArchiveSection):
 
         add_activity(archive)
         if self.set_temperature is not None:
-            archive.results.properties.catalytic.reactivity.test_temperatures = self.set_temperature
+            archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
         if self.set_pressure is not None:
-            archive.results.properties.catalytic.reactivity.pressure = self.set_pressure
+            archive.results.properties.catalytic.reaction.pressure = self.set_pressure
         if self.set_total_flow_rate is not None:
-            archive.results.properties.catalytic.reactivity.flow_rate = self.set_total_flow_rate
+            archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
         if self.weight_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reactivity.weight_hourly_space_velocity = self.weight_hourly_space_velocity
+            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
 
         if self.reagents is not None:
-            archive.results.properties.catalytic.reactivity.reactants = self.reagents
+            archive.results.properties.catalytic.reaction.reactants = self.reagents
 
 
 class CatalyticSectionConditions_dynamic(CatalyticSectionConditions_static):
@@ -230,7 +230,7 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
     # catalyst = SubSection(section_def=ReactorFilling, repeats=False)
 
     def normalize(self, archive, logger):
-        super(ReactionConditions, self).normalize(archive, logger)
+        super(ReactionConditionsSimple, self).normalize(archive, logger)
 
 
         if self.section_runs is not None:
