@@ -738,20 +738,14 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         
         for col in analysed.dtype.names :
             if col.endswith('Target Calculated Realtime Value [mln|min]'):
-                name_split=col.split("(")[0]
+                name_split=col.split("(")
                 gas_name=name_split[1].split(")")
                 if 'NH3' in gas_name:
                     reagent = Reagent(name='NH3', flow_rate=analysed[col])
                     reagents.append(reagent)
                 else:
-                    reagent = Reagent(name=gas_name, flow_rate=analysed[col])
+                    reagent = Reagent(name=gas_name[0], flow_rate=analysed[col])
                     reagents.append(reagent)
-            # if col.startswith('Massflow'):
-            #     col_split = col.split("(")
-            #     col_split1 = col_split[1].split(")")
-            #     if col_split1[1].startswith(' actual'): 
-            #         reagent = Reagent(name=col_split1[0], flow_rate=analysed[col])
-            #         reagents.append(reagent)
         feed.reagents = reagents
         # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
         conversion = Conversion(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
