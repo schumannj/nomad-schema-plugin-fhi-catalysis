@@ -187,15 +187,25 @@ class CatalyticSectionConditions_static(ArchiveSection):
                 if reagent.flow_rate is None and reagent.gas_concentration_in is not None:
                     reagent.flow_rate = self.set_total_flow_rate * reagent.gas_concentration_in
 
-        if self.weight_hourly_space_velocity is not None and self.set_total_flow_rate is not None:
+        if self.weight_hourly_space_velocity is None and self.set_total_flow_rate is not None:
             try:
                 self.weight_hourly_space_velocity = self.set_total_flow_rate / self.m_root().data.reactor_filling.catalyst_mass
             except:
                 logger.warning('The catalyst mass is not defined. Needed to calculate the weight hourly space velocity.')
                 return
+        if self.contact_time is None and self.weight_hourly_space_velocity is not None:
+            self.contact_time = 1 / self.weight_hourly_space_velocity
+        
+        if self.gas_hourly_space_velocity is None and self.set_total_flow_rate is not None:
+            if self.m_root().data.reactor_filling.apparent_catalyst_volume is not None:
+                self.gas_hourly_space_velocity = self.set_total_flow_rate / self.m_root().data.reactor_filling.apparent_catalyst_volume
+            # except:
+            #     logger.warning('The apparent catalyst volume is not defined. The gas hourly space velocity cannot be calculated.')
+            #     return
             
         add_activity(archive)
         if self.set_temperature is not None:
+            print(self.set_temperature)
             archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
         if self.set_pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = self.set_pressure
@@ -346,14 +356,9 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
                             y_r[n][i]=(reagent.gas_concentration_in)
                             y_r_text="gas concentrations"
                         if i == len(self.section_runs)-1:
-                            # y_r[n].append(y_r[n][i])
-                            print(x, y_r[n])
                             figR.add_trace(go.Scatter(x=x, y=y_r[n], name=reagent.name))
                             if n == len(run.reagents)-1:
                                 figR.add_trace(go.Scatter(x=x, y=y_r[n+1], name='Total Flow Rates'))
-                    # if run.set_total_flow_rate is not None:
-                    #     figR.add_trace(go.Scatter(x=x,y=run.set_total_flow_rate, name='Total Flow Rates'))
-            print(x, y)
             figT.add_trace(go.Scatter(x=x, y=y, name='Temperature'))
             figT.update_layout(title_text="Temperature")
             figT.update_xaxes(title_text=x_text)

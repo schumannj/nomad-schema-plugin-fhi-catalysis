@@ -247,8 +247,8 @@ class ReactorFilling(ArchiveSection):
             if self.m_root().data.samples == []:
                 sample1_reference = CompositeSystemReference(reference=self.sample_reference)
                 self.m_root().data.samples.append(sample1_reference)
-            elif self.m_root().data.samples.reference is None:
-                self.m_root().data.samples.reference = self.sample_reference
+            elif self.m_root().data.samples[0].reference is None:
+                self.m_root().data.samples[0].reference = self.sample_reference
             self.sample_reference.normalize(archive, logger)
 
         if self.catalyst_name is None and self.sample_reference is not None:
