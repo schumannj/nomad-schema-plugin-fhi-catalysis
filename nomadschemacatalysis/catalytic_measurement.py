@@ -125,7 +125,13 @@ class Reactant(Reagent):
         description='Volumetric fraction of reactant in outlet.', 
         a_eln=ELNAnnotation(component='NumberEditQuantity'))
     
-    conversion = SubSection(section_def=Conversion)
+    reference = Quantity(type=Reagent, a_eln=dict(component='ReferenceEditQuantity'))
+    conversion = Quantity(type=np.float64, shape=['*'])
+    conversion_type = Quantity(type=str, a_eln=dict(component='StringEditQuantity', props=dict(
+        suggestions=['product_based', 'reactant_based', 'unknown'])))
+    conversion_product_based = Quantity(type=np.float64, shape=['*'])
+    conversion_reactant_based = Quantity(type=np.float64, shape=['*'])
+
 
 class CatalyticSectionConditions_static(ArchiveSection):
     m_def = Section(description='A class containing reaction conditions of a single run or set of conditions.')
@@ -246,7 +252,6 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
         type=np.float64, unit='hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='hour'))
 
     section_runs = SubSection(section_def=CatalyticSectionConditions_static, repeats=True)
-    # catalyst = SubSection(section_def=ReactorFilling, repeats=False)
 
     def normalize(self, archive, logger):
         super(ReactionConditionsSimple, self).normalize(archive, logger)
@@ -407,7 +412,7 @@ class ReactionConditions(PlotSection, ArchiveSection):
 
     runs = Quantity(type=np.float64, shape=['*'])
 
-    sampling_frequency = Quantity(
+    sampling_frequency = Quantity(  #maybe better use sampling interval?
         type=np.float64, shape=[], unit='Hz',
         description='The number of measurement points per time.',
         a_eln=dict(component='NumberEditQuantity'))
@@ -422,82 +427,82 @@ class ReactionConditions(PlotSection, ArchiveSection):
         for reagent in self.reagents:
             reagent.normalize(archive, logger)
 
-        if self.runs is None and self.set_temperature is not None:
-            number_of_runs=len(self.set_temperature)
-        elif self.runs is None and self.set_pressure is not None:
-            number_of_runs=len(self.set_pressure)
-        elif self.runs is None and self.set_total_flow_rate is not None:
-            number_of_runs=len(self.set_total_flow_rate)
-        elif self.runs is None and self.gas_hourly_space_velocity is not None:
-            number_of_runs=len(self.gas_hourly_space_velocity)
-        elif self.runs is None and self.weight_hourly_space_velocity is not None:
-            number_of_runs=len(self.weight_hourly_space_velocity)
-        elif self.runs is None and self.time_on_stream is not None:
-            number_of_runs=len(self.time_on_stream)
-        elif self.runs is None and self.reagents[0].gas_concentration_in is not None:
-            number_of_runs=len(self.reagents[0].gas_concentration_in)
-        elif self.runs is not None:
-            number_of_runs=len(self.runs)
-        else:
-            number_of_runs=1
-        self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
+        # if self.runs is None and self.set_temperature is not None:
+        #     number_of_runs=len(self.set_temperature)
+        # elif self.runs is None and self.set_pressure is not None:
+        #     number_of_runs=len(self.set_pressure)
+        # elif self.runs is None and self.set_total_flow_rate is not None:
+        #     number_of_runs=len(self.set_total_flow_rate)
+        # elif self.runs is None and self.gas_hourly_space_velocity is not None:
+        #     number_of_runs=len(self.gas_hourly_space_velocity)
+        # elif self.runs is None and self.weight_hourly_space_velocity is not None:
+        #     number_of_runs=len(self.weight_hourly_space_velocity)
+        # elif self.runs is None and self.time_on_stream is not None:
+        #     number_of_runs=len(self.time_on_stream)
+        # elif self.runs is None and self.reagents[0].gas_concentration_in is not None:
+        #     number_of_runs=len(self.reagents[0].gas_concentration_in)
+        # elif self.runs is not None:
+        #     number_of_runs=len(self.runs)
+        # else:
+        #     number_of_runs=1
+        # self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
 
-        if self.set_pressure is not None:
-            if len(self.set_pressure) == 1:
-                for n in range(number_of_runs-1):
-                    self.set_pressure=np.append(self.set_pressure, self.set_pressure[0])
+        # if self.set_pressure is not None:
+        #     if len(self.set_pressure) == 1:
+        #         for n in range(number_of_runs-1):
+        #             self.set_pressure=np.append(self.set_pressure, self.set_pressure[0])
 
-        if self.set_total_flow_rate is None and self.reagents is not None:
-            self.set_total_flow_rate = np.array([])
-            for n in range(number_of_runs):
-                total_flow_rate=0
-                for reagent in self.reagents:
-                    if reagent.flow_rate is not None:
-                        if len(reagent.flow_rate) == 1:
-                            for m in range(number_of_runs-1):
-                                reagent.flow_rate=np.append(reagent.flow_rate, reagent.flow_rate[0])
-                        elif len(reagent.flow_rate) != number_of_runs:
-                            raise ValueError('The number of flow rates is not equal to the number of runs')
-                        total_flow_rate+=reagent.flow_rate[n]
-                self.set_total_flow_rate=np.append(self.set_total_flow_rate, total_flow_rate)
+        # if self.set_total_flow_rate is None and self.reagents is not None:
+        #     self.set_total_flow_rate = np.array([])
+        #     for n in range(number_of_runs):
+        #         total_flow_rate=0
+        #         for reagent in self.reagents:
+        #             if reagent.flow_rate is not None:
+        #                 if len(reagent.flow_rate) == 1:
+        #                     for m in range(number_of_runs-1):
+        #                         reagent.flow_rate=np.append(reagent.flow_rate, reagent.flow_rate[0])
+        #                 elif len(reagent.flow_rate) != number_of_runs:
+        #                     raise ValueError('The number of flow rates is not equal to the number of runs')
+        #                 total_flow_rate+=reagent.flow_rate[n]
+        #         self.set_total_flow_rate=np.append(self.set_total_flow_rate, total_flow_rate)
 
-        if self.set_total_flow_rate is not None:
-            if len(self.set_total_flow_rate) == 1:
-                set_total_flow_rate=[]
-                for n in range(number_of_runs):
-                    set_total_flow_rate.append(self.set_total_flow_rate)
-                self.set_total_flow_rate=set_total_flow_rate
+        # if self.set_total_flow_rate is not None:
+        #     if len(self.set_total_flow_rate) == 1:
+        #         set_total_flow_rate=[]
+        #         for n in range(number_of_runs):
+        #             set_total_flow_rate.append(self.set_total_flow_rate)
+        #         self.set_total_flow_rate=set_total_flow_rate
 
-        for reagent in self.reagents:
-            if reagent.gas_concentration_in is not None:
-                if len(reagent.gas_concentration_in) == 1:
-                    gas_concentration_in=[]
-                    for n in range(number_of_runs):
-                        gas_concentration_in.append(reagent.gas_concentration_in)
-                    reagent.gas_concentration_in=gas_concentration_in
-                elif len(reagent.gas_concentration_in) != number_of_runs:
-                    print(len(reagent.gas_concentration_in), number_of_runs)
-                    raise ValueError('The number of gas concentrations is not equal to the number of runs')
+        # for reagent in self.reagents:
+        #     if reagent.gas_concentration_in is not None:
+        #         if len(reagent.gas_concentration_in) == 1:
+        #             gas_concentration_in=[]
+        #             for n in range(number_of_runs):
+        #                 gas_concentration_in.append(reagent.gas_concentration_in)
+        #             reagent.gas_concentration_in=gas_concentration_in
+        #         elif len(reagent.gas_concentration_in) != number_of_runs:
+        #             print(len(reagent.gas_concentration_in), number_of_runs)
+        #             raise ValueError('The number of gas concentrations is not equal to the number of runs')
             
-            if reagent.flow_rate is not None:
-                if len(reagent.flow_rate) == 1:
-                    for n in range(number_of_runs):
-                        reagent.flow_rate.append(reagent.flow_rate[0])
-                elif len(reagent.flow_rate) != number_of_runs:
-                    raise ValueError('The number of flow rates is not equal to the number of runs')
+        #     if reagent.flow_rate is not None:
+        #         if len(reagent.flow_rate) == 1:
+        #             for n in range(number_of_runs):
+        #                 reagent.flow_rate.append(reagent.flow_rate[0])
+        #         elif len(reagent.flow_rate) != number_of_runs:
+        #             raise ValueError('The number of flow rates is not equal to the number of runs')
 
-        add_activity(archive)
+        # add_activity(archive)
 
-        if self.set_temperature is not None:
-            archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
-        if self.set_pressure is not None:
-            archive.results.properties.catalytic.reaction.pressure = self.set_pressure
-        if self.set_total_flow_rate is not None:
-            archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
-        if self.weight_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
-        if self.reagents is not None:
-            archive.results.properties.catalytic.reaction.reactants = self.reagents
+        # if self.set_temperature is not None:
+        #     archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
+        # if self.set_pressure is not None:
+        #     archive.results.properties.catalytic.reaction.pressure = self.set_pressure
+        # if self.set_total_flow_rate is not None:
+        #     archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
+        # if self.weight_hourly_space_velocity is not None:
+        #     archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
+        # if self.reagents is not None:
+        #     archive.results.properties.catalytic.reaction.reactants = self.reagents
 
         #Figures definitions:
         if self.time_on_stream is not None:
@@ -576,8 +581,16 @@ class Product(Reagent, ArchiveSection):
         description='Volumetric fraction of reactant in outlet.', 
         a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
-    selectivity = Quantity(type=np.float64, shape=['*'])
-    product_yield = Quantity(type=np.float64, shape=['*'])
+    selectivity = Quantity(
+        type=np.float64, shape=['*'],
+        description='The selectivity of the product in the reaction mixture.',
+        a_eln=ELNAnnotation(component='NumberEditQuantity'),
+        iris=['https://w3id.org/nfdi4cat/voc4cat_0000125'])
+    
+    product_yield = Quantity(type=np.float64, shape=['*'],
+                             description='The yield of the product in the reaction mixture, calculated as conversion x selectivity.',
+                             a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    
     rates = SubSection(section_def=Rates)
     
     def normalize(self, archive, logger):
@@ -619,10 +632,10 @@ class CatalyticReactionData_core(ArchiveSection):
     runs = Quantity(type=np.float64, shape=['*'])
     time_on_stream = Quantity(type=np.float64, shape=['*'], unit='hour')
 
-    reactants_conversions = SubSection(section_def=Conversion, repeats=True)
+    reactants_conversions = SubSection(section_def=Reactant, repeats=True)
     rates = SubSection(section_def=Rates, repeats=True)
 
-    products = SubSection(section_def=Reagent, repeats=True)
+    products = SubSection(section_def=Product, repeats=True)
 
     def normalize(self, archive, logger):
         

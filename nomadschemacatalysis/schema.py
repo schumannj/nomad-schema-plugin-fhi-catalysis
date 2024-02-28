@@ -16,15 +16,20 @@ from nomad.datamodel.metainfo.basesections import CompositeSystem, Measurement, 
 from nomad.datamodel.data import ArchiveSection
 
 from nomad.datamodel.results import (Results, Material, Properties, CatalyticProperties,
-                                     CatalystCharacterization, CatalystSynthesis, Product, Reactant)
+                                     CatalystCharacterization, CatalystSynthesis)
+from nomad.datamodel.results import Product as Product_result
+from nomad.datamodel.results import Reactant as Reactant_result
+
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, CatalyticReactionData_core, Reagent, Conversion, Rates, Reactor_setup, ReactionConditions, ReactionConditionsSimple,
+    CatalyticReactionData, CatalyticReactionData_core, Conversion, Rates, Reactor_setup, ReactionConditions, ReactionConditionsSimple,
     add_activity
     )
 
 from .catalytic_measurement import Product as Product_data
+from .catalytic_measurement import Reagent as Reagent_data
+from .catalytic_measurement import Reactant as Reactant_data
 
 from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
 import plotly.express as px
@@ -71,7 +76,9 @@ class Preparation(ArchiveSection):
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['A. Trunschke',
-                         'R. Schlögl'])),
+                         'C. Hess',
+                         'M. Behrens',
+                         'unknown'])),
         #repeats=True
     )
 
@@ -118,7 +125,6 @@ class SurfaceArea(ArchiveSection):
                              'unknown']))
     )
 
-
     def normalize(self, archive, logger):
         super(SurfaceArea, self).normalize(archive, logger)
 
@@ -130,12 +136,6 @@ class SurfaceArea(ArchiveSection):
 
 
 class CatalystSample(CompositeSystem, EntryData):
-    """
-    This schema is originally adapted to map the data of the clean Oxidation dataset (JACS,
-    https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
-    represent the instructions given to the user who manually curated the data.
-    """
-
     m_def = Section(
         label='Heterogeneous Catalysis - Catalyst Sample',
         #a_eln=dict(hide=['cas_uri', 'cas_number', 'cas_name', 'inchi', 'inchi_key',
@@ -284,7 +284,8 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(suggestions=[
             'Oxidation', 'Hydrogenation', 'Dehydrogenation', 'Cracking', 'Isomerisation', 'Coupling']
-        )))
+        )),
+        iris=['https://w3id.org/nfdi4cat/voc4cat_0007010'])
 
     reaction_name = Quantity(
         type=str,
@@ -295,7 +296,9 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
             component='EnumEditQuantity', props=dict(suggestions=[
                 'Alkane Oxidation', 'Oxidation of Ethane', 'Oxidation of Propane',
                 'Oxidation of Butane', 'CO hydrogenation', 'Methanol Synthesis', 'Fischer-Tropsch',
-                'Water gas shift reaction', 'Ammonia Synthesis', 'Ammonia decomposition'])))
+                'Water gas shift reaction', 'Ammonia Synthesis', 'Ammonia decomposition'])),
+        iris=['https://w3id.org/nfdi4cat/voc4cat_0007009'])
+
 
     experiment_handbook = Quantity(
         description="""
@@ -328,7 +331,7 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
     )
 
 
-class SimpleCatalyticReaction(Measurement, EntryData):
+class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
     m_def = Section(
         label='Heterogeneous Catalysis - Simple Catalytic Reaction for measurment plugin',
         categories=[UseCaseElnCategory]
@@ -340,10 +343,13 @@ class SimpleCatalyticReaction(Measurement, EntryData):
 
 
 class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
-
+    """
+    This schema is originally adapted to map the data of the clean Oxidation dataset (JACS,
+    https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
+    represent the instructions given to the user who manually curated the data.
+    """
     m_def = Section(
-        label='Heterogeneous Catalysis - Activity Test Clean Oxidation',
-        hide=['reaction_conditions.set_temperature', 'reaction_conditions.set_pressure'],
+        label='Heterogeneous Catalysis - Activity Test Clean Data',
         a_eln=ELNAnnotation(properties=dict(order= ['name','data_file', 'sample_reference','reaction_name','reaction_class',
                             'experimenter', 'institute', 'experiment_handbook'])),
         categories=[UseCaseElnCategory]
@@ -415,7 +421,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 cat_data.runs = data['step']
 
             if col_split[0] == "x":
-                reagent = Reagent(name=col_split[1], gas_concentration_in=data[col])
+                reagent = Reagent_data(name=col_split[1], gas_concentration_in=data[col])
                 reagent_names.append(col_split[1])
                 reagents.append(reagent)
             if col_split[0] == "mass":
@@ -441,8 +447,10 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 feed.gas_hourly_space_velocity = np.nan_to_num(data[col])
 
             if col_split[0] == "Vflow":
-                feed.set_total_flow_rates = np.nan_to_num(data[col])
+                feed.set_total_flow_rate = np.nan_to_num(data[col])
 
+            if col_split[0] == "set_pressure":	
+                feed.set_pressure = np.nan_to_num(data[col])
             if col_split[0] == "pressure":
                 cat_data.pressure = np.nan_to_num(data[col])
 
@@ -472,12 +480,12 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             if col_split[0] == "x_r":  # conversion, based on reactant detection
                 #if data['x '+col_split[1]+' (%)'] is not None:
                 try:
-                    conversion2 = Reactant(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=(np.nan_to_num(data['x '+col_split[1]+' (%)']))/100)
+                    conversion2 = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=(np.nan_to_num(data['x '+col_split[1]+' (%)'])))
                     conversions2.append(conversion2)
                 except KeyError:
                     pass
                 try:
-                    conversion2 = Reactant(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=np.nan_to_num(data['x '+col_split[1]]))
+                    conversion2 = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=np.nan_to_num(data['x '+col_split[1]])*100)
                     conversions2.append(conversion2)
                 except KeyError:
                     pass
@@ -489,53 +497,67 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 conversion.conversion_reactant_based = data[col]
                 conversions.append(conversion)
 
+            if col_split[0] == "y":  # concentration out
+                if col_split[1] in reagent_names:
+                    conversion2 = Reactant_data(name=col_split[1], gas_concentration_in=np.nan_to_num(data['x '+col_split[1]+' (%)']), gas_concentration_out=np.nan_to_num(data[col]), conversion=(1-(data[col]/data['x '+col_split[1]+' (%)'])*100))
+                    conversions2.append(conversion2)
+                else:
+                    product = Product_data(name=col_split[1], gas_concentration_out=np.nan_to_num(data[col]))
+                    products.append(product)
+                    product_names.append(col_split[1])	
+            
             if col_split[0] == "S_p":  # selectivity
                 product = Product_data(name=col_split[1], selectivity=np.nan_to_num(data[col]))
-                # for i, p in enumerate(rates):
-                #     if p.name == col_split[1]:
-                #         rate = rates.pop(i)
-                #         product.reaction_rate=rate.reaction_rate
-                #         break
-
+                for i, p in enumerate(products):
+                    if p.name == col_split[1]:
+                        product = products.pop(i)
+                        product.selectivity = np.nan_to_num(data[col])
+                        break
                 products.append(product)
                 product_names.append(col_split[1])
 
+        for reagent in reagents:
+            reagent.normalize(archive, logger)
         feed.reagents = reagents
         
         if cat_data.runs is None:
             cat_data.runs = np.linspace(0, number_of_runs - 1, number_of_runs)
         cat_data.products = products
-        cat_data.reactants_conversions = conversions
+        if conversions != []:
+            cat_data.reactants_conversions = conversions
+        elif conversions2 != []:
+            print('in if clause', conversions2)
+            cat_data.reactants_conversions = conversions2
         cat_data.rates = rates
         self.reaction_conditions = feed
         self.reaction_results = cat_data
         if self.reactor_filling is None and reactor_filling is not None:
-            reactor_filling = self.reactor_filling
-
-
-        for reagent in self.reaction_conditions.reagents:
-            reagent.normalize(archive, logger)
+            self.reactor_filling = reactor_filling
+        
         self.reaction_results.normalize(archive, logger)
 
+        conversions_results = []
         for i in conversions2:
-            for j in feed.reagents:
+            for j in reagents:
                 if i.name == j.name:
                     if j.pure_component.iupac_name is not None:
                         i.name = j.pure_component.iupac_name
                         break
+                    react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in)
+                    conversions_results.append(react)
         product_results=[]
         for i in products:
             print(i)
             if i.pure_component is not None:
                 if i.pure_component.iupac_name is not None:
                     i.name = i.pure_component.iupac_name
-            prod = Product(name=i.name, selectivity=i.selectivity)
+            prod = Product_result(name=i.name, selectivity=i.selectivity, gas_concentration_out=i.gas_concentration_out)
             product_results.append(prod)
 
         add_activity(archive)
 
-        if conversions2 is not None:
-            archive.results.properties.catalytic.reaction.reactants = conversions2
+        if conversions_results is not None:
+            archive.results.properties.catalytic.reaction.reactants = conversions_results
         if cat_data.temperature is not None:
             archive.results.properties.catalytic.reaction.temperatures = cat_data.temperature
         if cat_data.temperature is None and feed.set_temperature is not None:
@@ -574,6 +596,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 except Exception as e:
                     logger.warn('Could not analyse elemental compostion.', exc_info=e)
         
+        ###Figures definitions###
         if self.reaction_results.time_on_stream is not None:
             x=self.reaction_results.time_on_stream.to('hour')
             x_text="time (h)"
@@ -587,7 +610,16 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             fig.update_yaxes(title_text="Temperature (°C)")
             self.figures.append(PlotlyFigure(label='figure Temperature', figure=fig.to_plotly_json()))
             self.reaction_results.figures.append(PlotlyFigure(label='Temperature', figure=fig.to_plotly_json()))
-
+        
+        if cat_data.pressure is not None or feed.set_pressure is not None:
+            figP = go.Figure()
+            if cat_data.pressure is not None:
+                figP = px.line(x=x, y=cat_data.pressure.to("bar"))
+            elif feed.set_pressure is not None:
+                figP = px.line(x=x, y=feed.set_pressure.to("bar"))
+            figP.update_xaxes(title_text=x_text)
+            figP.update_yaxes(title_text="Pressure (bar)")
+            self.figures.append(PlotlyFigure(label='figure Pressure', figure=figP.to_plotly_json()))
         
         fig0 = go.Figure()
         for i,c in enumerate(self.reaction_results.products):
@@ -644,7 +676,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
     data_file_h5 = Quantity(
         type=str,
         description="""
-        hdf5 file that contains 'Analyzed Data' of a catalytic measurement with
+        hdf5 file that contains 'Sorted Data' of a catalytic measurement with
         time, temperature,  Conversion, Space_time_Yield
         """,
         a_eln=dict(component='FileEditQuantity'),
@@ -712,10 +744,10 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         pretreatment.set_temperature = pre["Catalyst Temperature [C°]"]*ureg.celsius
         for col in pre.dtype.names :
             if col == 'Massflow3 (H2) Target Calculated Realtime Value [mln|min]':
-                pre_reagent = Reagent(name='hydrogen', flow_rate=pre[col])
+                pre_reagent = Reagent_data(name='hydrogen', flow_rate=pre[col])
                 pre_reagents.append(pre_reagent)
             if col == 'Massflow5 (Ar) Target Calculated Realtime Value [mln|min]':
-                pre_reagent = Reagent(name='argon', flow_rate=pre[col])
+                pre_reagent = Reagent_data(name='argon', flow_rate=pre[col])
                 pre_reagents.append(pre_reagent)
             # if col.startswith('Massflow'):
             #     col_split = col.split("(")
@@ -741,16 +773,16 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
                 name_split=col.split("(")
                 gas_name=name_split[1].split(")")
                 if 'NH3' in gas_name:
-                    reagent = Reagent(name='NH3', flow_rate=analysed[col])
+                    reagent = Reagent_data(name='NH3', flow_rate=analysed[col])
                     reagents.append(reagent)
                 else:
-                    reagent = Reagent(name=gas_name[0], flow_rate=analysed[col])
+                    reagent = Reagent_data(name=gas_name[0], flow_rate=analysed[col])
                     reagents.append(reagent)
         feed.reagents = reagents
         # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
         conversion = Conversion(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
         conversions.append(conversion)
-        conversion2 = Reactant(name='ammonia', conversion=analysed['NH3 Conversion [%]'])
+        conversion2 = Reactant_result(name='ammonia', conversion=analysed['NH3 Conversion [%]'])
         conversions2.append(conversion2)
         rate = Rates(name='molecular hydrogen', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']*ureg.mmol/ureg.g/ureg.minute))
         rates.append(rate)
@@ -788,7 +820,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         
         products_results = []
         for i in ['molecular nitrogen', 'molecular hydrogen']:
-            product = Product(name=i)
+            product = Product_result(name=i)
             products_results.append(product)
         self.products = products_results
 
