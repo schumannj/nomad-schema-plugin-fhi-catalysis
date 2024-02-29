@@ -542,9 +542,9 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 if i.name == j.name:
                     if j.pure_component.iupac_name is not None:
                         i.name = j.pure_component.iupac_name
-                        break
-                    react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in)
+                    react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
                     conversions_results.append(react)
+                    break
         product_results=[]
         for i in products:
             print(i)
