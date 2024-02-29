@@ -258,13 +258,13 @@ class ReactorFilling(ArchiveSection):
             self.apparent_catalyst_volume = self.catalyst_mass / self.catalyst_density
 
 
-class Feed(ReactionConditions, ArchiveSection):  
-    m_def = Section(description='A class containing information about the feed gas and reactor filling including the catalyst.')
+# class Feed(ReactionConditions, ArchiveSection):  
+#     m_def = Section(description='A class containing information about the feed gas and reactor filling including the catalyst.')
 
-    reactor_filling = SubSection(section_def=ReactorFilling)
+#     reactor_filling = SubSection(section_def=ReactorFilling)
     
-    def normalize(self, archive, logger):
-        super(Feed, self).normalize(archive, logger)
+#     def normalize(self, archive, logger):
+#         super(Feed, self).normalize(archive, logger)
 
 
 class CatalyticReaction_core(Measurement, ArchiveSection):
@@ -367,7 +367,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
     reactor_setup = SubSection(section_def=Reactor_setup)
     reactor_filling = SubSection(section_def=ReactorFilling)
 
-    reaction_conditions = SubSection(section_def=Feed, a_eln=ELNAnnotation(label='Reaction Conditions'))
+    reaction_conditions = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
     reaction_results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
 
     def normalize(self, archive, logger):
@@ -390,7 +390,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 data = pd.read_excel(f.name, sheet_name=0)
 
         data.dropna(axis=1, how='all', inplace=True)
-        feed = Feed()
+        feed = ReactionConditions()
         reactor_filling = ReactorFilling()
         cat_data = CatalyticReactionData()
         reagents = []
