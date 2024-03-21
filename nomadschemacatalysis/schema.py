@@ -24,7 +24,7 @@ from nomad.datamodel.results import Reactant as Reactant_result
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, CatalyticReactionData_core, Conversion, Rates, Reactor_setup, ReactionConditions, ReactionConditionsSimple,
+    CatalyticReactionData, CatalyticReactionData_core, Conversion, Rates, ReactorSetup, ReactionConditions, ReactionConditionsSimple,
     add_activity
     )
 
@@ -345,7 +345,7 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
     )
     reaction_condition = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
     reactor_filling = SubSection(section_def=ReactorFilling)
-    reactor_setup = SubSection(section_def=Reactor_setup)
+    reactor_setup = SubSection(section_def=ReactorSetup)
     reaction_results = SubSection(section_def=CatalyticReactionData_core, a_eln=ELNAnnotation(label='Reaction Results'))
 
 
@@ -371,7 +371,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         a_eln=dict(component='FileEditQuantity'),
         a_browser=dict(adaptor='RawFileAdaptor'))
 
-    reactor_setup = SubSection(section_def=Reactor_setup)
+    reactor_setup = SubSection(section_def=ReactorSetup)
     reactor_filling = SubSection(section_def=ReactorFilling)
 
     reaction_conditions = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
@@ -567,9 +567,9 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         if conversions_results is not None:
             archive.results.properties.catalytic.reaction.reactants = conversions_results
         if cat_data.temperature is not None:
-            archive.results.properties.catalytic.reaction.temperatures = cat_data.temperature
+            archive.results.properties.catalytic.reaction.temperature = cat_data.temperature
         if cat_data.temperature is None and feed.set_temperature is not None:
-            archive.results.properties.catalytic.reaction.temperatures = feed.set_temperature
+            archive.results.properties.catalytic.reaction.temperature = feed.set_temperature
         if cat_data.pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = cat_data.pressure
         elif feed.set_pressure is not None:
@@ -700,7 +700,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         a_browser=dict(adaptor='RawFileAdaptor')
     )
 
-    reactor_setup = SubSection(section_def=Reactor_setup)
+    reactor_setup = SubSection(section_def=ReactorSetup)
     reactor_filling = SubSection(section_def=ReactorFilling)
 
     pretreatment = SubSection(section_def=ReactionConditions)
@@ -725,7 +725,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
 
         cat_data=CatalyticReactionData_core()
         feed=ReactionConditions()
-        reactor_setup=Reactor_setup()
+        reactor_setup=ReactorSetup()
         reactor_filling=ReactorFilling()
         pretreatment=ReactionConditions()
         sample=CompositeSystemReference()
