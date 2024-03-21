@@ -429,6 +429,7 @@ class ReactionConditions(PlotSection, ArchiveSection):
 
         # if self.runs is None and self.set_temperature is not None:
         #     number_of_runs=len(self.set_temperature)
+        #     self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
         # elif self.runs is None and self.set_pressure is not None:
         #     number_of_runs=len(self.set_pressure)
         # elif self.runs is None and self.set_total_flow_rate is not None:
@@ -445,7 +446,7 @@ class ReactionConditions(PlotSection, ArchiveSection):
         #     number_of_runs=len(self.runs)
         # else:
         #     number_of_runs=1
-        # self.runs= np.linspace(0, number_of_runs - 1, number_of_runs)
+        
 
         # if self.set_pressure is not None:
         #     if len(self.set_pressure) == 1:
@@ -494,7 +495,7 @@ class ReactionConditions(PlotSection, ArchiveSection):
         # add_activity(archive)
 
         # if self.set_temperature is not None:
-        #     archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
+        #     archive.results.properties.catalytic.reaction.temperature = self.set_temperature
         # if self.set_pressure is not None:
         #     archive.results.properties.catalytic.reaction.pressure = self.set_pressure
         # if self.set_total_flow_rate is not None:
@@ -504,44 +505,45 @@ class ReactionConditions(PlotSection, ArchiveSection):
         # if self.reagents is not None:
         #     archive.results.properties.catalytic.reaction.reactants = self.reagents
 
-        #Figures definitions:
+        #Figures definitions for ReactionConditions Subsection:
         if self.time_on_stream is not None:
             x=self.time_on_stream.to('hour')
             x_text="time (h)"
-        else:
+        elif self.run is not None:
             x=self.runs
             x_text="steps"
 
-        if self.set_temperature is not None:
+        if self.set_temperature is not None and len(self.set_temperature) > 1:
             figT = px.scatter(x=x, y=self.set_temperature.to('kelvin'))
             figT.update_layout(title_text="Temperature")
             figT.update_xaxes(title_text=x_text,)
             figT.update_yaxes(title_text="Temperature (K)")
             self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
 
-        if self.set_pressure is not None:
+        if self.set_pressure is not None and len(self.set_pressure) > 1:
             figP = px.scatter(x=x, y=self.set_pressure.to('bar'))
             figP.update_layout(title_text="Pressure")
             figP.update_xaxes(title_text=x_text,)
             figP.update_yaxes(title_text="pressure (bar)")
             self.figures.append(PlotlyFigure(label='Pressure', figure=figP.to_plotly_json()))
-
-        if self.reagents is not None and (self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None):
-            fig5 = go.Figure()
-            for i,r in enumerate(self.reagents):
-                if r.flow_rate is not None:
-                    y=r.flow_rate.to('mL/minute')
-                    fig5.add_trace(go.Scatter(x=x, y=y, name=r.name))
-                    y5_text="Flow rates (mL/min)"
-                    if self.set_total_flow_rate is not None and i == 0:
-                        fig5.add_trace(go.Scatter(x=x,y=self.set_total_flow_rate, name='Total Flow Rates'))
-                elif self.reagents[0].gas_concentration_in is not None:
-                    fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].gas_concentration_in, name=self.reagents[i].name))    
-                    y5_text="gas concentrations"
-            fig5.update_layout(title_text="Gas feed", showlegend=True)
-            fig5.update_xaxes(title_text=x_text)
-            fig5.update_yaxes(title_text=y5_text)
-            self.figures.append(PlotlyFigure(label='Feed Gas', figure=fig5.to_plotly_json()))
+        
+        if self.reagents is not None and self.reagents != []:
+            if self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None and (len(self.reagents[0].flow_rate) > 1 or len(self.reagents[0].gas_concentration_in) > 1):
+                fig5 = go.Figure()
+                for i,r in enumerate(self.reagents):
+                    if r.flow_rate is not None:
+                        y=r.flow_rate.to('mL/minute')
+                        fig5.add_trace(go.Scatter(x=x, y=y, name=r.name))
+                        y5_text="Flow rates (mL/min)"
+                        if self.set_total_flow_rate is not None and i == 0:
+                            fig5.add_trace(go.Scatter(x=x,y=self.set_total_flow_rate, name='Total Flow Rates'))
+                    elif self.reagents[0].gas_concentration_in is not None:
+                        fig5.add_trace(go.Scatter(x=x, y=self.reagents[i].gas_concentration_in, name=self.reagents[i].name))    
+                        y5_text="gas concentrations"
+                fig5.update_layout(title_text="Gas feed", showlegend=True)
+                fig5.update_xaxes(title_text=x_text)
+                fig5.update_yaxes(title_text=y5_text)
+                self.figures.append(PlotlyFigure(label='Feed Gas', figure=fig5.to_plotly_json()))
 
 
 class Rates(ArchiveSection):
@@ -607,7 +609,7 @@ class Product(Reagent, ArchiveSection):
         super(Product, self).normalize(archive, logger)
 
 
-class Reactor_setup(ArchiveSection):
+class ReactorSetup(ArchiveSection):
     m_def = Section(label_quantity='name')
     name = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'))
     reactor_type = Quantity(type=str, shape=[], a_eln=dict(component='EnumEditQuantity'),
