@@ -3,13 +3,13 @@ requires = [ "setuptools>=61.0.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "catalysis"
+name = "nomad_catalysis"
 version = "0.0.1"
 description = "A NOMAD plugin for catalysis entries"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.9",]
-dependencies = [ "nomad-lab>=1.2.2.dev", "pytest", "typing-extensions==4.4.0", "nomad-material-processing>=0.0.1"]
+dependencies = [ "nomad-lab>=1.2.2.dev536"]
 
 [project.license]
 file = "LICENSE"
