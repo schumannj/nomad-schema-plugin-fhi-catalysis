@@ -24,7 +24,7 @@ from nomad.datamodel.results import Reactant as Reactant_result
 from nomad.datamodel.data import EntryData, UseCaseElnCategory
 
 from .catalytic_measurement import (
-    CatalyticReactionData, CatalyticReactionData_core, Conversion, Rates, ReactorSetup, ReactionConditions, ReactionConditionsSimple,
+    CatalyticReactionData, CatalyticReactionData_core, Rates, ReactorSetup, ReactionConditions, ReactionConditionsSimple,
     add_activity
     )
 
@@ -343,10 +343,77 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
         label='Heterogeneous Catalysis - Simple Catalytic Reaction for measurment plugin',
         categories=[UseCaseElnCategory]
     )
-    reaction_condition = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
+    reaction_conditions = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
     reactor_filling = SubSection(section_def=ReactorFilling)
     reactor_setup = SubSection(section_def=ReactorSetup)
     reaction_results = SubSection(section_def=CatalyticReactionData_core, a_eln=ELNAnnotation(label='Reaction Results'))
+    
+    def normalize(self, archive, logger):
+        super(SimpleCatalyticReaction, self).normalize(archive, logger)
+
+        add_activity(archive)
+
+        if self.reaction_results.reactants_conversions is not None:
+            archive.results.properties.catalytic.reaction.reactants = self.reaction_results.reactants_conversions
+        if self.reaction_results.temperature is not None:
+            archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
+        if self.reaction_results.temperature is None and self.reaction_conditions.section_runs[0].set_temperature is not None:
+            set_temperature = []
+            for run in self.reaction_conditions.section_runs:
+                if run.set_temperature is not None:
+                    set_temperature.append(run.set_temperature)
+            archive.results.properties.catalytic.reaction.temperature = set_temperature
+        if self.reaction_results.pressure is not None:
+            archive.results.properties.catalytic.reaction.pressure = self.reaction_results.pressure
+        elif self.reaction_conditions.section_run[0].set_pressure is not None:
+            set_pressure = []
+            for run in self.reaction_conditions.section_runs:
+                if run.set_pressure is not None:
+                    set_pressure.append(run.set_pressure)
+            archive.results.properties.catalytic.reaction.pressure = set_pressure
+        if self.reaction_conditions.section_run[0].gas_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.section_run[0].gas_hourly_space_velocity
+        if self.reaction_results.products is not None:
+            products_results=[]
+            for i in self.reaction_results.products:
+                product_result=Product_result(name=i.name, selectivity=i.selectivity, gas_concentration_out=i.gas_concentration_out)
+                products_results.append(product_result)
+            archive.results.properties.catalytic.reaction.products = products_results
+        if self.reaction_name is not None:
+            archive.results.properties.catalytic.reaction.name = self.reaction_name
+        if self.reaction_class is not None:
+            archive.results.properties.catalytic.reaction.type = self.reaction_class
+
+        if self.sample_reference is not None:
+            add_catalyst(archive)
+            
+            if self.sample_reference.catalyst_type is not None:
+                archive.results.properties.catalytic.catalyst_synthesis.catalyst_type = self.sample_reference.catalyst_type
+            if self.sample_reference.preparation_details is not None:
+                archive.results.properties.catalytic.catalyst_synthesis.preparation_method = self.sample_reference.preparation_details.preparation_method
+            if self.sample_reference.surface is not None:
+                archive.results.properties.catalytic.catalyst_characterization.surface_area = self.sample_reference.surface.surface_area
+        
+            if self.sample_reference.elemental_composition is not None:
+                if not archive.results:
+                    archive.results = Results()
+                if not archive.results.material:
+                    archive.results.material = Material()
+
+                try:
+                    archive.results.material.elemental_composition = self.sample_reference.elemental_composition
+  
+                except Exception as e:
+                    logger.warn('Could not analyse elemental compostion.', exc_info=e)
+                for i in self.sample_reference.elemental_composition:    
+                    if i.element not in chemical_symbols:
+                        logger.warn(
+                            f"'{self.sample_reference.elemental_composition.element}' is not a valid element symbol and this "
+                            'elemental_composition section will be ignored.'
+                        )
+                    elif i.element not in archive.results.material.elements:
+                        archive.results.material.elements += [i.element]
+
 
 
 class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
@@ -382,6 +449,22 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         if (self.data_file is None):  # and (self.data_file_h5 is None):
             return
 
+        # if (self.data_file is not None) and (self.reaction_results is not None):
+        #     if self.reaction_results.reactants_conversions is not None:
+        #         conversion_results = []
+        #         for i in self.reaction_results.reactants_conversions:
+        #             if i.name in ['He', 'helium', 'Ar', 'argon', 'inert']:
+        #                 continue
+        #             else:
+        #                 for j in self.reaction_conditions.reagents:
+        #                     if i.name == j.name:
+        #                         if j.pure_component.iupac_name is not None:
+        #                             i.name = j.pure_component.iupac_name
+        #                             react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=j.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
+        #                             conversion_results.append(react)
+        #         archive.results.properties.catalytic.reaction.reactants = conversion_results
+        #         return
+
         if ((self.data_file is not None) and (os.path.splitext(
                 self.data_file)[-1] != ".csv" and os.path.splitext(
                 self.data_file)[-1] != ".xlsx")):
@@ -407,9 +490,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         products = []
         product_names = []
         conversions = []
-        conversions2 = []
+        #conversions2 = []
         conversion_names = []
-        conversion_list = []
         rates = []
         number_of_runs = 0
         for col in data.columns:
@@ -472,42 +554,38 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 continue
 
             if col_split[0] == "x_p":  # conversion, based on product detection
-                conversion = Conversion(name=col_split[1], conversion=np.nan_to_num(data[col]),
-                                        type='product-based conversion', conversion_product_based=np.nan_to_num(data[col]))
+                conversion = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]),
+                                        conversion_type='product-based conversion', conversion_product_based=np.nan_to_num(data[col]))
                 for i, p in enumerate(conversions):
                     if p.name == col_split[1]:
                         conversion = conversions.pop(i)
 
                 conversion.conversion_product_based = np.nan_to_num(data[col])
+                conversion.conversion = np.nan_to_num(data[col])
+                conversion.conversion_type = 'product-based conversion'
 
                 conversion_names.append(col_split[1])
-                conversion_list.append(data[col])
                 conversions.append(conversion)
 
             if col_split[0] == "x_r":  # conversion, based on reactant detection
                 #if data['x '+col_split[1]+' (%)'] is not None:
                 try:
-                    conversion2 = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=(np.nan_to_num(data['x '+col_split[1]+' (%)'])))
-                    conversions2.append(conversion2)
+                    conversion = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), conversion_type='reactant-based conversion', conversion_reactant_based=np.nan_to_num(data[col]), gas_concentration_in=(np.nan_to_num(data['x '+col_split[1]+' (%)'])))
                 except KeyError:
-                    pass
-                try:
-                    conversion2 = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), gas_concentration_in=np.nan_to_num(data['x '+col_split[1]])*100)
-                    conversions2.append(conversion2)
-                except KeyError:
-                    pass
-                finally:    
-                    conversion = Conversion(name=col_split[1], conversion=np.nan_to_num(data[col]), type='reactant-based conversion', conversion_reactant_based = np.nan_to_num(data[col]))
+                    conversion = Reactant_data(name=col_split[1], conversion=np.nan_to_num(data[col]), conversion_type='reactant-based conversion', conversion_reactant_based=np.nan_to_num(data[col]), gas_concentration_in=np.nan_to_num(data['x '+col_split[1]])*100)
+                except:
+                    logger.warn('Something went wrong with reading the x_r column.')
+
                 for i, p in enumerate(conversions):
                     if p.name == col_split[1]:
                         conversion = conversions.pop(i)
-                conversion.conversion_reactant_based = data[col]
+                        conversion.conversion_reactant_based = np.nan_to_num(data[col])
                 conversions.append(conversion)
 
             if col_split[0] == "y":  # concentration out
                 if col_split[1] in reagent_names:
-                    conversion2 = Reactant_data(name=col_split[1], gas_concentration_in=np.nan_to_num(data['x '+col_split[1]+' (%)']), gas_concentration_out=np.nan_to_num(data[col]), conversion=np.nan_to_num((1-(data[col]/data['x '+col_split[1]+' (%)']))*100))
-                    conversions2.append(conversion2)
+                    conversion = Reactant_data(name=col_split[1], gas_concentration_in=np.nan_to_num(data['x '+col_split[1]+' (%)']), gas_concentration_out=np.nan_to_num(data[col]), conversion=np.nan_to_num((1-(data[col]/data['x '+col_split[1]+' (%)']))*100))
+                    conversions.append(conversion)
                 else:
                     product = Product_data(name=col_split[1], gas_concentration_out=np.nan_to_num(data[col]))
                     products.append(product)
@@ -532,10 +610,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         cat_data.products = products
         if conversions != []:
             cat_data.reactants_conversions = conversions
-        elif conversions2 != []:
-            print('in if clause', conversions2)
-            cat_data.reactants_conversions = conversions2
         cat_data.rates = rates
+
         self.reaction_conditions = feed
         self.reaction_results = cat_data
         if self.reactor_filling is None and reactor_filling is not None:
@@ -544,7 +620,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         self.reaction_results.normalize(archive, logger)
 
         conversions_results = []
-        for i in conversions2:
+        for i in conversions:
             if i.name in ['He', 'helium', 'Ar', 'argon', 'inert']:
                 continue
             else:
@@ -552,8 +628,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                     if i.name == j.name:
                         if j.pure_component.iupac_name is not None:
                             i.name = j.pure_component.iupac_name
-                            react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
-                            conversions_results.append(react)
+                        react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
+                        conversions_results.append(react)
         product_results=[]
         for i in products:
             if i.pure_component is not None:
@@ -606,7 +682,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 for i in self.sample_reference.elemental_composition:    
                     if i.element not in chemical_symbols:
                         logger.warn(
-                            f"'{self.sample_reference.elemental_composition.element}' is not a valid element symbol and this "
+                            f"'{i.element}' is not a valid element symbol and this "
                             'elemental_composition section will be ignored.'
                         )
                     elif i.element not in archive.results.material.elements:
@@ -679,6 +755,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 fig.update_xaxes(title_text='Conversion '+ name ) 
                 fig.update_yaxes(title_text='Selectivity')
                 self.figures.append(PlotlyFigure(label='S-X plot '+ name+" Conversion", figure=fig.to_plotly_json()))
+        
+        return
 
 
 class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, EntryData):
@@ -797,7 +875,7 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
                     reagents.append(reagent)
         feed.reagents = reagents
         # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
-        conversion = Conversion(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
+        conversion = Reactant_data(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
         conversions.append(conversion)
         conversion2 = Reactant_result(name='ammonia', conversion=analysed['NH3 Conversion [%]'])
         # conversion2.conversion = analysed['NH3 Conversion [%]'].reshape(-1,10).mean(axis=1)  ## trying to reduce size of array
@@ -876,12 +954,21 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
                 archive.results.material = Material()
 
             try:
-                archive.results.material.elements = self.sample_reference.elemental_composition.elements
                 archive.results.material.elemental_composition = self.sample_reference.elemental_composition
 
             except Exception as e:
                 logger.warn('Could not analyse elemental compostion.', exc_info=e)
 
+            for i in self.sample_reference.elemental_composition:    
+                if i.element not in chemical_symbols:
+                    logger.warn(
+                        f"'{i.element}' is not a valid element symbol and this "
+                        'elemental_composition section will be ignored.'
+                    )
+                elif i.element not in archive.results.material.elements:
+                    archive.results.material.elements += [i.element]
+
+        self.figures = []
         fig = px.line(x=self.reaction_results.time_on_stream, y=self.reaction_results.temperature.to('celsius'))
         fig.update_xaxes(title_text="time(h)")
         fig.update_yaxes(title_text="Temperature (°C)")

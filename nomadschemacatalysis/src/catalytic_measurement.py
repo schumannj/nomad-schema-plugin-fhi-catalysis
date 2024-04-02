@@ -104,17 +104,6 @@ class Reagent(ArchiveSection):
 
         if self.name is None and self.pure_component is not None:
             self.name = self.pure_component.molecular_formula
-        
-
-class Conversion(ArchiveSection):
-    m_def = Section(label_quantity='name')
-    name = Quantity(type=str, a_eln=dict(component='StringEditQuantity'))
-    reference = Quantity(type=Reagent, a_eln=dict(component='ReferenceEditQuantity'))
-    type = Quantity(type=str, a_eln=dict(component='StringEditQuantity', props=dict(
-        suggestions=['product_based', 'reactant_based', 'unknown'])))
-    conversion = Quantity(type=np.float64, shape=['*'])
-    conversion_product_based = Quantity(type=np.float64, shape=['*'])
-    conversion_reactant_based = Quantity(type=np.float64, shape=['*'])
 
 
 class Reactant(Reagent):
@@ -182,11 +171,12 @@ class CatalyticSectionConditions_static(ArchiveSection):
             reagent.normalize(archive, logger)
 
         if self.set_total_flow_rate is None and self.reagents is not None:
-            total_flow_rate=0
-            for reagent in self.reagents:
-                if reagent.flow_rate is not None:
-                    total_flow_rate+=reagent.flow_rate
-            self.set_total_flow_rate=total_flow_rate
+            if self.reagents[0].flow_rate is not None:
+                total_flow_rate=0
+                for reagent in self.reagents:
+                    if reagent.flow_rate is not None:
+                        total_flow_rate+=reagent.flow_rate
+                self.set_total_flow_rate=total_flow_rate
 
         if self.set_total_flow_rate is not None:
            for reagent in self.reagents:
@@ -212,7 +202,7 @@ class CatalyticSectionConditions_static(ArchiveSection):
         add_activity(archive)
         if self.set_temperature is not None:
             print(self.set_temperature)
-            archive.results.properties.catalytic.reaction.temperatures = self.set_temperature
+            archive.results.properties.catalytic.reaction.temperature = self.set_temperature
         if self.set_pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = self.set_pressure
         if self.set_total_flow_rate is not None:
@@ -259,37 +249,41 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
 
         if self.section_runs is not None:
             for i,run in enumerate(self.section_runs):
-                if run.repeat_settings_for_next_run is True:
-                    try:
-                        if self.section_runs[i+1] is None:
+                try:
+                    if run.repeat_settings_for_next_run is True:
+                        try:
+                            if self.section_runs[i+1] is None:
+                                self.section_runs.append(CatalyticSectionConditions_static())
+                        except IndexError:
                             self.section_runs.append(CatalyticSectionConditions_static())
-                    except IndexError:
-                        self.section_runs.append(CatalyticSectionConditions_static())
-                    if run.set_temperature is not None and self.section_runs[i+1].set_temperature is None:
-                        self.section_runs[i+1].set_temperature = run.set_temperature
-                    if run.set_pressure is not None and self.section_runs[i+1].set_pressure is None:
-                        self.section_runs[i+1].set_pressure = run.set_pressure
-                    if run.set_total_flow_rate is not None and self.section_runs[i+1].set_total_flow_rate is None:
-                        self.section_runs[i+1].set_total_flow_rate = run.set_total_flow_rate
-                    if run.duration is not None and self.section_runs[i+1].duration is None:
-                        self.section_runs[i+1].duration = run.duration
-                    if run.weight_hourly_space_velocity is not None and self.section_runs[i+1].weight_hourly_space_velocity is None:
-                        self.section_runs[i+1].weight_hourly_space_velocity = run.weight_hourly_space_velocity
-                    if run.contact_time is not None and self.section_runs[i+1].contact_time is None:
-                        self.section_runs[i+1].contact_time = run.contact_time
-                    if run.gas_hourly_space_velocity is not None and self.section_runs[i+1].gas_hourly_space_velocity is None:
-                        self.section_runs[i+1].gas_hourly_space_velocity = run.gas_hourly_space_velocity
-                    if run.reagents is not None and self.section_runs[i+1].reagents == []:
-                        reagents_next=[]
-                        for reagent in run.reagents:
-                            reagents_next.append(reagent)
-                        self.section_runs[i+1].reagents = reagents_next
-
-            time=0
-            for run in self.section_runs:
-                if run.duration is not None:
-                    time = time + run.duration
-                    run.time_on_stream = time
+                        if run.set_temperature is not None and self.section_runs[i+1].set_temperature is None:
+                            self.section_runs[i+1].set_temperature = run.set_temperature
+                        if run.set_pressure is not None and self.section_runs[i+1].set_pressure is None:
+                            self.section_runs[i+1].set_pressure = run.set_pressure
+                        if run.set_total_flow_rate is not None and self.section_runs[i+1].set_total_flow_rate is None:
+                            self.section_runs[i+1].set_total_flow_rate = run.set_total_flow_rate
+                        if run.duration is not None and self.section_runs[i+1].duration is None:
+                            self.section_runs[i+1].duration = run.duration
+                        if run.weight_hourly_space_velocity is not None and self.section_runs[i+1].weight_hourly_space_velocity is None:
+                            self.section_runs[i+1].weight_hourly_space_velocity = run.weight_hourly_space_velocity
+                        if run.contact_time is not None and self.section_runs[i+1].contact_time is None:
+                            self.section_runs[i+1].contact_time = run.contact_time
+                        if run.gas_hourly_space_velocity is not None and self.section_runs[i+1].gas_hourly_space_velocity is None:
+                            self.section_runs[i+1].gas_hourly_space_velocity = run.gas_hourly_space_velocity
+                        if run.reagents is not None and self.section_runs[i+1].reagents == []:
+                            reagents_next=[]
+                            for reagent in run.reagents:
+                                reagents_next.append(reagent)
+                            self.section_runs[i+1].reagents = reagents_next
+                except:
+                    pass
+            
+            if self.section_runs[0].duration is not None:
+                time=0
+                for run in self.section_runs:
+                    if run.duration is not None:
+                        time = time + run.duration
+                        run.time_on_stream = time
                 self.total_time_on_stream = time
 
             self.number_of_sections = len(self.section_runs)
@@ -303,90 +297,91 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
         self.figures = []
 
         if self.section_runs is not None:
-            figT=go.Figure()
-            x=[0,]
-            y=[]
-            for i,run in enumerate(self.section_runs):
-                if run.set_temperature is not None:
-                    y.append(run.set_temperature.to('kelvin'))
-                    try:
-                        if run.set_temperature_section_stop is not None:
-                            y.append(run.set_temperature_section_stop.to('kelvin'))
-                    except:
+            if len(self.section_runs) > 1:
+                figT=go.Figure()
+                x=[0,]
+                y=[]
+                for i,run in enumerate(self.section_runs):
+                    if run.set_temperature is not None:
                         y.append(run.set_temperature.to('kelvin'))
-                if run.set_pressure is not None:
-                    if i == 0:
-                        figP=go.Figure()
-                        y_p=[]
-                    y_p.append(run.set_pressure.to('bar'))
-                    try:
-                        if run.set_pressure_section_stop is not None:
-                            y_p.append(run.set_pressure_section_stop.to('bar'))
-                    except:
+                        try:
+                            if run.set_temperature_section_stop is not None:
+                                y.append(run.set_temperature_section_stop.to('kelvin'))
+                        except:
+                            y.append(run.set_temperature.to('kelvin'))
+                    if run.set_pressure is not None:
+                        if i == 0:
+                            figP=go.Figure()
+                            y_p=[]
                         y_p.append(run.set_pressure.to('bar'))
-                if run.time_on_stream is not None:
-                    x.append(run.time_on_stream.to('hour'))
-                    if i != len(self.section_runs)-1:
+                        try:
+                            if run.set_pressure_section_stop is not None:
+                                y_p.append(run.set_pressure_section_stop.to('bar'))
+                        except:
+                            y_p.append(run.set_pressure.to('bar'))
+                    if run.time_on_stream is not None:
                         x.append(run.time_on_stream.to('hour'))
-                    x_text="time (h)"
-                elif i == len(self.section_runs)-1:
-                    for j in range(1, len(self.section_runs)):
-                        x.append(j)
-                        if j != len(self.section_runs)-1:
+                        if i != len(self.section_runs)-1:
+                            x.append(run.time_on_stream.to('hour'))
+                        x_text="time (h)"
+                    elif i == len(self.section_runs)-1:
+                        for j in range(1, len(self.section_runs)):
                             x.append(j)
-                    x_text='step'
-                if run.reagents != []:
-                    for n,reagent in enumerate(run.reagents):
-                        if n == 0 and i == 0:
-                            figR=go.Figure()
-                            reagent_n, runs_n = (len(run.reagents), len(self.section_runs))
-                            y_r=[[0 for k in range(2*runs_n)] for l in range(reagent_n+1) ]
-                            reagent_name=[0 for k in range(reagent_n+1)]
-                        if i==0:
-                            reagent_name[n]=reagent.name
-                            if n == len(run.reagents)-1:
-                                reagent_name[n+1]=['total flow rate']
-                        if reagent.flow_rate is not None:
-                            if reagent.name == reagent_name[n]:
-                                y_r[n][2*i]=(reagent.flow_rate[0].to('mL/minute'))
-                                y_r[n][2*i+1]=(reagent.flow_rate[0].to('mL/minute'))
-                                y_r_text="Flow rates (mL/min)"
-                            else:
-                                logger.warning('Reagent name has changed in run'+str(i+1)+'.')
-                                return
-                            if n == len(run.reagents)-1:
-                                y_r[n+1][2*i]=(run.set_total_flow_rate.to('mL/minute'))
-                                y_r[n+1][2*i+1]=(run.set_total_flow_rate.to('mL/minute'))
-                        elif reagent.gas_concentration_in is not None:
-                            y_r[n][i]=(reagent.gas_concentration_in)
-                            y_r_text="gas concentrations"
-                        if i == len(self.section_runs)-1:
-                            figR.add_trace(go.Scatter(x=x, y=y_r[n], name=reagent.name))
-                            if n == len(run.reagents)-1:
-                                figR.add_trace(go.Scatter(x=x, y=y_r[n+1], name='Total Flow Rates'))
-            figT.add_trace(go.Scatter(x=x, y=y, name='Temperature'))
-            figT.update_layout(title_text="Temperature")
-            figT.update_xaxes(title_text=x_text)
-            figT.update_yaxes(title_text="Temperature (K)")
-            self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
+                            if j != len(self.section_runs)-1:
+                                x.append(j)
+                        x_text='step'
+                    if run.reagents != []:
+                        for n,reagent in enumerate(run.reagents):
+                            if n == 0 and i == 0:
+                                figR=go.Figure()
+                                reagent_n, runs_n = (len(run.reagents), len(self.section_runs))
+                                y_r=[[0 for k in range(2*runs_n)] for l in range(reagent_n+1) ]
+                                reagent_name=[0 for k in range(reagent_n+1)]
+                            if i==0:
+                                reagent_name[n]=reagent.name
+                                if n == len(run.reagents)-1:
+                                    reagent_name[n+1]=['total flow rate']
+                            if reagent.flow_rate is not None:
+                                if reagent.name == reagent_name[n]:
+                                    y_r[n][2*i]=(reagent.flow_rate[0].to('mL/minute'))
+                                    y_r[n][2*i+1]=(reagent.flow_rate[0].to('mL/minute'))
+                                    y_r_text="Flow rates (mL/min)"
+                                else:
+                                    logger.warning('Reagent name has changed in run'+str(i+1)+'.')
+                                    return
+                                if n == len(run.reagents)-1:
+                                    y_r[n+1][2*i]=(run.set_total_flow_rate.to('mL/minute'))
+                                    y_r[n+1][2*i+1]=(run.set_total_flow_rate.to('mL/minute'))
+                            elif reagent.gas_concentration_in is not None:
+                                y_r[n][i]=(reagent.gas_concentration_in)
+                                y_r_text="gas concentrations"
+                            if i == len(self.section_runs)-1:
+                                figR.add_trace(go.Scatter(x=x, y=y_r[n], name=reagent.name))
+                                if n == len(run.reagents)-1:
+                                    figR.add_trace(go.Scatter(x=x, y=y_r[n+1], name='Total Flow Rates'))
+                figT.add_trace(go.Scatter(x=x, y=y, name='Temperature'))
+                figT.update_layout(title_text="Temperature")
+                figT.update_xaxes(title_text=x_text)
+                figT.update_yaxes(title_text="Temperature (K)")
+                self.figures.append(PlotlyFigure(label='Temperature', figure=figT.to_plotly_json()))
 
-            try:
-                if figP is not None:
-                    figP.add_trace(go.Scatter(x=x, y=y_p, name='Pressure'))
-                    figP.update_layout(title_text="Pressure")
-                    figP.update_xaxes(title_text=x_text,)
-                    figP.update_yaxes(title_text="pressure (bar)")
-                    self.figures.append(PlotlyFigure(label='Pressure', figure=figP.to_plotly_json()))
-            except:
-                pass
-            try:
-                if figR is not None:
-                    figR.update_layout(title_text="Gas feed", showlegend=True)
-                    figR.update_xaxes(title_text=x_text)
-                    figR.update_yaxes(title_text=y_r_text)
-                    self.figures.append(PlotlyFigure(label='Feed Gas', figure=figR.to_plotly_json()))
-            except:
-                pass
+                try:
+                    if figP is not None:
+                        figP.add_trace(go.Scatter(x=x, y=y_p, name='Pressure'))
+                        figP.update_layout(title_text="Pressure")
+                        figP.update_xaxes(title_text=x_text,)
+                        figP.update_yaxes(title_text="pressure (bar)")
+                        self.figures.append(PlotlyFigure(label='Pressure', figure=figP.to_plotly_json()))
+                except:
+                    pass
+                try:
+                    if figR is not None:
+                        figR.update_layout(title_text="Gas feed", showlegend=True)
+                        figR.update_xaxes(title_text=x_text)
+                        figR.update_yaxes(title_text=y_r_text)
+                        self.figures.append(PlotlyFigure(label='Feed Gas', figure=figR.to_plotly_json()))
+                except:
+                    pass
 
 
 class ReactionConditions(PlotSection, ArchiveSection):
@@ -509,9 +504,11 @@ class ReactionConditions(PlotSection, ArchiveSection):
         if self.time_on_stream is not None:
             x=self.time_on_stream.to('hour')
             x_text="time (h)"
-        elif self.run is not None:
+        elif self.runs is not None:
             x=self.runs
             x_text="steps"
+        else:
+            return
 
         if self.set_temperature is not None and len(self.set_temperature) > 1:
             figT = px.scatter(x=x, y=self.set_temperature.to('kelvin'))
@@ -528,7 +525,7 @@ class ReactionConditions(PlotSection, ArchiveSection):
             self.figures.append(PlotlyFigure(label='Pressure', figure=figP.to_plotly_json()))
         
         if self.reagents is not None and self.reagents != []:
-            if self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None and (len(self.reagents[0].flow_rate) > 1 or len(self.reagents[0].gas_concentration_in) > 1):
+            if self.reagents[0].flow_rate is not None or self.reagents[0].gas_concentration_in is not None: 
                 fig5 = go.Figure()
                 for i,r in enumerate(self.reagents):
                     if r.flow_rate is not None:
