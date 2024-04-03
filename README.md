@@ -17,13 +17,19 @@ plugins:
       - 'nomad-schema-plugin-fhi-catalysis/nomadschemacatalysis'
     options:
       nomad-schema-plugin-fhi-catalysis/nomadschemacatalysis:
-        python_package: nomadschemacatalysis
+        python_package: nomad_catalysis
 ```
-do not forget to export the package in the same terminal where you run NOMAD (nomad admin run appworker):
+Now this plugin works as a python package and can also be pip installed locally.
+
+Alternatively you can export the package in the same terminal where you run NOMAD (nomad admin run appworker):
 
 `export PYTHONPATH="$PYTHONPATH:/your/path/nomad-to/nomad-schema-plugin-fhi-catalysis" `
 
 or to make this path persistent, write into the .pyenv/bin/activate file of your virtual env. Use the path of your local OS where you cloned this repo.
+
+
+
+
 
 ### Fork the project
 
