@@ -29,9 +29,12 @@ or to make this path persistent, write into the .pyenv/bin/activate file of your
 
 
 
+### Fork the catalysis plugin project
 
+Go to the github project page https://github.com/schumannj/nomad-schema-plugin-fhi-catalysis, hit
+fork (and leave a star, thanks!). Maybe you want to rename the project while forking!
 
-### Fork the project
+### Or fork the original plugin project
 
 Go to the github project page https://github.com/nomad-coe/nomad-schema-plugin-example, hit
 fork (and leave a star, thanks!). Maybe you want to rename the project while forking!
