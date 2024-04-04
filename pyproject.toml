@@ -9,7 +9,7 @@ description = "A NOMAD plugin for catalysis entries"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.9",]
-dependencies = [ "nomad-lab>=1.2.2.dev536"]
+dependencies = [ "nomad-lab>=1.2.2.dev399"]
 
 [project.license]
 file = "LICENSE"
