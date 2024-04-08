@@ -1,5 +1,5 @@
 [build-system]
-requires = [ "setuptools>=61.0.0",]
+requires = [ "setuptools>=61.0.0", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,9 @@ name = "nomad_catalysis"
 version = "0.0.1"
 description = "A NOMAD plugin for catalysis entries"
 readme = "README.md"
+authors = [
+    {name = "Julia Schumann", email = 'jschumann@physik.hu-berlin.de'}
+]
 requires-python = ">=3.9"
 classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.9",]
 dependencies = [ "nomad-lab>=1.2.2.dev399"]
