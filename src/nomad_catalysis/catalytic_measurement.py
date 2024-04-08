@@ -24,6 +24,8 @@ from nomad.datamodel.metainfo.basesections import (PubChemPureSubstanceSection)
 
 from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reaction)
 
+from nomad.datamodel.results import Reactant as Reactant_result
+
 from nomad.datamodel.metainfo.plot import PlotSection, PlotlyFigure
 import plotly.express as px
 import plotly.graph_objs as go
@@ -199,19 +201,16 @@ class CatalyticSectionConditions_static(ArchiveSection):
             #     logger.warning('The apparent catalyst volume is not defined. The gas hourly space velocity cannot be calculated.')
             #     return
             
-        add_activity(archive)
-        if self.set_temperature is not None:
-            print(self.set_temperature)
-            archive.results.properties.catalytic.reaction.temperature = self.set_temperature
-        if self.set_pressure is not None:
-            archive.results.properties.catalytic.reaction.pressure = self.set_pressure
-        if self.set_total_flow_rate is not None:
-            archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
-        if self.weight_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
+        # add_activity(archive)
+        # if self.set_temperature is not None:
+        #     archive.results.properties.catalytic.reaction.temperature = self.set_temperature
+        # if self.set_pressure is not None:
+        #     archive.results.properties.catalytic.reaction.pressure = self.set_pressure
+        # if self.set_total_flow_rate is not None:
+        #     archive.results.properties.catalytic.reaction.flow_rate = self.set_total_flow_rate
+        # if self.weight_hourly_space_velocity is not None:
+        #     archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.weight_hourly_space_velocity
 
-        if self.reagents is not None:
-            archive.results.properties.catalytic.reaction.reactants = self.reagents
 
 
 class CatalyticSectionConditions_dynamic(CatalyticSectionConditions_static):
@@ -277,21 +276,34 @@ class ReactionConditionsSimple(PlotSection, ArchiveSection):
                             self.section_runs[i+1].reagents = reagents_next
                 except:
                     pass
+            try:
+                if self.section_runs[0].duration is not None:
+                    time=0
+                    for run in self.section_runs:
+                        if run.duration is not None:
+                            time = time + run.duration
+                            run.time_on_stream = time
+                    self.total_time_on_stream = time
+            except AttributeError:
+                try:
+                    self.total_time_on_stream = self.section_runs.duration
+                except:
+                    pass
             
-            if self.section_runs[0].duration is not None:
-                time=0
-                for run in self.section_runs:
-                    if run.duration is not None:
-                        time = time + run.duration
-                        run.time_on_stream = time
-                self.total_time_on_stream = time
 
             self.number_of_sections = len(self.section_runs)
 
-
         add_activity(archive)
-        for run in self.section_runs:
-            run.normalize(archive, logger)
+
+        try:
+            for run in self.section_runs:
+                run.normalize(archive, logger)
+        except AttributeError:
+            try:
+                self.section_runs.normalize(archive, logger)
+            except:
+                pass
+        
 
         #Figures definitions:
         self.figures = []

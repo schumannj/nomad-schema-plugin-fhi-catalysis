@@ -265,15 +265,6 @@ class ReactorFilling(ArchiveSection):
             self.apparent_catalyst_volume = self.catalyst_mass / self.catalyst_density
 
 
-# class Feed(ReactionConditions, ArchiveSection):  
-#     m_def = Section(description='A class containing information about the feed gas and reactor filling including the catalyst.')
-
-#     reactor_filling = SubSection(section_def=ReactorFilling)
-    
-#     def normalize(self, archive, logger):
-#         super(Feed, self).normalize(archive, logger)
-
-
 class CatalyticReaction_core(Measurement, ArchiveSection):
 
     sample_reference = Quantity(
@@ -353,8 +344,47 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
 
         add_activity(archive)
 
+        if self.reaction_conditions is not None:
+            if self.reaction_conditions.section_runs is not None:
+                if self.reaction_conditions.section_runs[0].reagents is not None:
+                    reactants=[]
+                    for r in self.reaction_conditions.section_runs[0].reagents:
+                        gas_concentration_in_list = np.array([])
+                        for run in self.reaction_conditions.section_runs:
+                            if run.reagents is not None:
+                                for reagent in run.reagents:
+                                    if reagent.name == r.name:
+                                        if reagent.pure_component is not None:
+                                            if reagent.pure_component.iupac_name is not None:
+                                                r_name = reagent.pure_component.iupac_name
+                                            else:
+                                                r_name = reagent.name
+                                        else:
+                                            r_name = reagent.name
+                                        gas_concentration_in_list = np.append(gas_concentration_in_list, reagent.gas_concentration_in)
+                        react = Reactant_result(name = r_name, gas_concentration_in = gas_concentration_in_list)
+                        reactants.append(react)
+                archive.results.properties.catalytic.reaction.reactants = reactants
+
         if self.reaction_results.reactants_conversions is not None:
-            archive.results.properties.catalytic.reaction.reactants = self.reaction_results.reactants_conversions
+            conversion_results = []
+            try:
+                i_name = self.reaction_results.reactants_conversions.pure_component.iupac_name
+            except:
+                for i in self.reaction_results.reactants_conversions:
+                    if i.pure_component is not None:
+                        if i.pure_component.iupac_name is not None:
+                            i_name = i.pure_component.iupac_name
+                    else:
+                        i_name = i.name
+                    conversion_result=Reactant_result(name=i_name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
+                    conversion_results.append(conversion_result)
+            else:
+                for i in archive.results.properties.catalytic.reaction.reactants:
+                    if i.name == i_name:
+                        i.conversion = self.reaction_results.reactants_conversions.conversion
+            if conversion_results != []:
+                archive.results.properties.catalytic.reaction.reactants = conversion_results
         if self.reaction_results.temperature is not None:
             archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
         if self.reaction_results.temperature is None and self.reaction_conditions.section_runs[0].set_temperature is not None:
@@ -365,14 +395,14 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
             archive.results.properties.catalytic.reaction.temperature = set_temperature
         if self.reaction_results.pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = self.reaction_results.pressure
-        elif self.reaction_conditions.section_run[0].set_pressure is not None:
+        elif self.reaction_conditions.section_runs[0].set_pressure is not None:
             set_pressure = []
             for run in self.reaction_conditions.section_runs:
                 if run.set_pressure is not None:
                     set_pressure.append(run.set_pressure)
             archive.results.properties.catalytic.reaction.pressure = set_pressure
-        if self.reaction_conditions.section_run[0].gas_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.section_run[0].gas_hourly_space_velocity
+        if self.reaction_conditions.section_runs[0].gas_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.section_runs[0].gas_hourly_space_velocity
         if self.reaction_results.products is not None:
             products_results=[]
             for i in self.reaction_results.products:
