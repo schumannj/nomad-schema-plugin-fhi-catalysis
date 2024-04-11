@@ -240,14 +240,16 @@ class CatalystSample(CompositeSystem, EntryData):
             if search_result.pagination.total > 0:
                 methods = []
                 for entry in search_result.data:
+                    print(entry['entry_type'])
                     if entry['entry_type'] == 'CatalystCollection':
                         pass
+                    elif entry['entry_type'] == 'CatalystSampleCollection':
+                        pass
+                    elif entry['entry_type'] == 'ELNXRayDiffraction':
+                        method = 'XRD'
                     else:
-                        if entry['entry_type'] == 'ELNXRayDiffraction':
-                            method = 'XRD'
-                        else:
-                            method = entry['entry_type']
-                        methods.append(method)
+                        method = entry['entry_type']
+                    methods.append(method)
                 archive.results.properties.catalytic.catalyst_characterization.method = methods
             else:
                 logger.warn(f'Found no entries with reference: "{catalyst_sample}".')
