@@ -67,7 +67,7 @@ def populate_catalyst_sample_info(archive, self, logger):
             if self.samples[0].reference.preparation_details is not None:
                 archive.results.properties.catalytic.catalyst_synthesis.preparation_method = self.samples[0].reference.preparation_details.preparation_method
             if self.samples[0].reference.surface is not None:
-                archive.results.properties.catalytic.catalyst_characterization.surface_area = self.samples[0].reference.surface.surfacearea
+                archive.results.properties.catalytic.catalyst_characterization.surface_area = self.samples[0].reference.surface.surface_area
 
             if self.samples[0].reference.elemental_composition is not None:
                 if not archive.results.material:
@@ -703,8 +703,11 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             archive.results.properties.catalytic.reaction.type = self.reaction_class
         
         if self.samples is not None and self.samples != []:
-            if self.samples[0].lab_id is not None:
-                self.samples[0].normalize(archive, logger)
+            if self.samples[0].lab_id is not None and self.samples[0].reference is None:
+                sample = CompositeSystemReference(lab_id=self.samples[0].lab_id, name=self.samples[0].name)
+                sample.normalize(archive, logger)
+                self.samples = []
+                self.samples.append(sample)
             populate_catalyst_sample_info(archive, self, logger)
         
         ###Figures definitions###
