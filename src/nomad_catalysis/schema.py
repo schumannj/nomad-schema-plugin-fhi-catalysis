@@ -247,9 +247,10 @@ class CatalystSample(CompositeSystem, EntryData):
                         pass
                     elif entry['entry_type'] == 'ELNXRayDiffraction':
                         method = 'XRD'
-                    else:
-                        method = entry['entry_type']
-                    methods.append(method)
+                        methods.append(method)
+                    # else:
+                    #     method = entry['entry_type']
+                    #     methods.append(method)
                 archive.results.properties.catalytic.catalyst_characterization.method = methods
             else:
                 logger.warn(f'Found no entries with reference: "{catalyst_sample}".')
