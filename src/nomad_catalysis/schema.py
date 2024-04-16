@@ -903,8 +903,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
             fig.update_xaxes(title_text=x_text)
             fig.update_yaxes(title_text="Temperature (°C)")
             self.figures.append(PlotlyFigure(label='figure Temperature', figure=fig.to_plotly_json()))
-            self.reaction_results.figures.append(PlotlyFigure(label='Temperature', figure=fig.to_plotly_json()))
-        
+       
         if self.reaction_results.pressure is not None or self.reaction_conditions.set_pressure is not None:
             figP = go.Figure()
             if self.reaction_results.pressure is not None:
