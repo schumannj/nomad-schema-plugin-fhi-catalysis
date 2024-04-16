@@ -58,7 +58,7 @@ def populate_catalyst_sample_info(archive, self, logger):
     '''
     Copies the catalyst sample information from a reference into the results archive of the measurement.
     '''
-    if self.samples is not None:
+    if self.samples is not None and self.samples != []:
         if self.samples[0].reference is not None:
             add_catalyst(archive)
         
@@ -233,24 +233,28 @@ class CatalystSample(CompositeSystem, EntryData):
             search_result = search(
                 owner='all',
                 query=query,
-                pagination=MetadataPagination(page_size=1),
+                pagination=MetadataPagination(page_size=10),
                 user_id=archive.metadata.main_author.user_id,
             )
 
             if search_result.pagination.total > 0:
                 methods = []
                 for entry in search_result.data:
-                    print(entry['entry_type'])
-                    if entry['entry_type'] == 'CatalystCollection':
+                    if entry['entry_type'] == 'ELNXRayDiffraction':
+                        method = 'XRD'
+                        methods.append(method)
+                    elif entry['entry_type'] == 'CatalystCollection':
                         pass
                     elif entry['entry_type'] == 'CatalystSampleCollection':
                         pass
-                    elif entry['entry_type'] == 'ELNXRayDiffraction':
-                        method = 'XRD'
-                        methods.append(method)
                     # else:
                     #     method = entry['entry_type']
                     #     methods.append(method)
+                if search_result.pagination.total > 10:
+                    logger.warn(
+                        f'Found {search_result.pagination.total} entries with entry_id: '
+                        f'"{catalyst_sample}". Will only check the the first 10 entries found for XRD method.'
+                    )
                 archive.results.properties.catalytic.catalyst_characterization.method = methods
             else:
                 logger.warn(f'Found no entries with reference: "{catalyst_sample}".')
@@ -390,7 +394,7 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
 
 class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
     m_def = Section(
-        label='Heterogeneous Catalysis - Simple Catalytic Reaction for measurment plugin',
+        label='Heterogeneous Catalysis - Simple Catalytic Reaction for measurement plugin',
         categories=[UseCaseElnCategory]
     )
     reaction_conditions = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
@@ -429,16 +433,21 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
             conversion_results = []
             try:
                 i_name = self.reaction_results.reactants_conversions.pure_component.iupac_name
-            except:
-                for i in self.reaction_results.reactants_conversions:
-                    if i.pure_component is not None:
-                        if i.pure_component.iupac_name is not None:
-                            i_name = i.pure_component.iupac_name
-                    else:
-                        i_name = i.name
+            except AttributeError: #'str' object has no attribute 'pure_component':
+                try:
+                    for i in self.reaction_results.reactants_conversions:
+                        if i.pure_component is not None:
+                            try: 
+                                i_name = i.pure_component.iupac_name
+                            except AttributeError:
+                                i_name = i.name
+                        else:
+                            i_name = i.name
                     conversion_result=Reactant_result(name=i_name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
                     conversion_results.append(conversion_result)
-            else:
+                except:
+                    i_name=self.reaction_results.reactants_conversions.name
+            finally:
                 for i in archive.results.properties.catalytic.reaction.reactants:
                     if i.name == i_name:
                         i.conversion = self.reaction_results.reactants_conversions.conversion
@@ -559,7 +568,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 catalyst_mass_vector = data[col]
                 if '(g)' in col_split[1]: 
                     reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.gram
-                else:
+                elif 'mg' in col_split[1]:
                     reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.milligram
             if col_split[0] == "temperature":
                 if "K" in col_split[1]:
@@ -718,9 +727,13 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         if self.reaction_results.time_on_stream is not None:
             x=self.reaction_results.time_on_stream.to('hour')
             x_text="time (h)"
-        else:
+        elif self.reaction_results.runs is not None:
             x=self.reaction_results.runs
             x_text="steps" 
+        else:
+            number_of_runs = len(self.reaction_conditions.set_temperature)
+            x = np.linspace(0, number_of_runs - 1, number_of_runs)
+            x_text = "steps"
 
         if self.reaction_results.temperature is not None:
             fig = px.line(x=x, y=self.reaction_results.temperature.to("celsius"))
@@ -783,6 +796,169 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         
         return
 
+class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData):
+
+    m_def = Section(
+        label='Heterogeneous Catalysis - Catalytic Reaction from JSON',
+        a_eln=ELNAnnotation(properties=dict(order= ['name','data_file', 'reaction_name', 'reaction_class',
+                            'experimenter', 'location', 'experiment_handbook'])),
+        categories=[UseCaseElnCategory]
+    )
+
+    reactor_setup = SubSection(section_def=ReactorSetup)
+    reactor_filling = SubSection(section_def=ReactorFilling)
+
+    pretreatment = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Pretreatment'))
+    reaction_conditions = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
+    reaction_results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
+
+    def normalize(self, archive, logger):
+        super(CatalyticReaction_from_json, self).normalize(archive, logger)
+        
+        if self.reaction_conditions is not None:
+            reagents = []
+            for reagent in self.reaction_conditions.reagents:
+                reagent.normalize(archive, logger)
+                reagents.append(reagent)
+            self.reaction_conditions.reagents = reagents
+
+            if self.reaction_conditions.set_total_flow_rate is not None and self.reactor_filling.catalyst_mass is not None and self.reaction_conditions.weight_hourly_space_velocity is None:
+                self.reaction_conditions.weight_hourly_space_velocity = self.reaction_conditions.set_total_flow_rate / self.reactor_filling.catalyst_mass
+
+        if self.reaction_results is not None:
+            self.reaction_results.normalize(archive, logger)
+
+            if self.reaction_results.reactants_conversions is not None:
+                conversions_results = []
+                for i in self.reaction_results.reactants_conversions:
+                    if i.name in ['He', 'helium', 'Ar', 'argon', 'inert']:
+                        continue
+                    else:
+                        for j in self.reaction_conditions.reagents:
+                            if i.name == j.name:
+                                if j.pure_component.iupac_name is not None:
+                                    i.name = j.pure_component.iupac_name
+                                react = Reactant_result(name=i.name, conversion=i.conversion, gas_concentration_in=i.gas_concentration_in, gas_concentration_out=i.gas_concentration_out)
+                                conversions_results.append(react)
+
+            product_results=[]
+            if self.reaction_results.products is not None:
+                for i in self.reaction_results.products:
+                    if i.pure_component is not None:
+                        if i.pure_component.iupac_name is not None:
+                            i.name = i.pure_component.iupac_name
+                    prod = Product_result(name=i.name, selectivity=i.selectivity, gas_concentration_out=i.gas_concentration_out)
+                    product_results.append(prod)
+
+        add_activity(archive)
+
+        if conversions_results is not None:
+            archive.results.properties.catalytic.reaction.reactants = conversions_results
+        if self.reaction_results.temperature is not None:
+            archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
+        elif self.reaction_conditions.set_temperature is not None:
+            archive.results.properties.catalytic.reaction.temperature = self.reaction_conditions.set_temperature
+        if self.reaction_results.pressure is not None:
+            archive.results.properties.catalytic.reaction.pressure = self.reaction_results.pressure
+        elif self.reaction_conditions.set_pressure is not None:
+            archive.results.properties.catalytic.reaction.pressure = self.reaction_conditions.set_pressure
+        if self.reaction_conditions.weight_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.reaction_conditions.weight_hourly_space_velocity
+        if self.reaction_conditions.gas_hourly_space_velocity is not None:
+            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.gas_hourly_space_velocity
+        if product_results is not None and product_results != []:
+            archive.results.properties.catalytic.reaction.products = product_results
+        if self.reaction_name is not None:
+            archive.results.properties.catalytic.reaction.name = self.reaction_name
+        if self.reaction_class is not None:
+            archive.results.properties.catalytic.reaction.type = self.reaction_class
+        
+        if self.samples is not None and self.samples != []:
+            if self.samples[0].lab_id is not None and self.samples[0].reference is None:
+                sample = CompositeSystemReference(lab_id=self.samples[0].lab_id, name=self.samples[0].name)
+                sample.normalize(archive, logger)
+                self.samples = []
+                self.samples.append(sample)
+            populate_catalyst_sample_info(archive, self, logger)
+        
+        ###Figures definitions###
+        self.figures = []
+        if self.reaction_results.time_on_stream is not None:
+            x=self.reaction_results.time_on_stream.to('hour')
+            x_text="time (h)"
+        elif self.reaction_results.runs is not None:
+            x=self.reaction_results.runs
+            x_text="steps" 
+        else:
+            number_of_runs = len(self.reaction_conditions.set_temperature)
+            x = np.linspace(1, number_of_runs, number_of_runs)
+            x_text = "steps"
+
+        if self.reaction_results.temperature is not None or self.reaction_conditions.set_temperature is not None:
+            fig = go.Figure()
+            if self.reaction_results.temperature is not None:
+                fig = px.line(x=x, y=self.reaction_results.temperature.to("celsius"))
+            elif self.reaction_conditions.set_temperature is not None:
+                fig = px.line(x=x, y=self.reaction_conditions.set_temperature.to("celsius"))
+            fig.update_xaxes(title_text=x_text)
+            fig.update_yaxes(title_text="Temperature (°C)")
+            self.figures.append(PlotlyFigure(label='figure Temperature', figure=fig.to_plotly_json()))
+            self.reaction_results.figures.append(PlotlyFigure(label='Temperature', figure=fig.to_plotly_json()))
+        
+        if self.reaction_results.pressure is not None or self.reaction_conditions.set_pressure is not None:
+            figP = go.Figure()
+            if self.reaction_results.pressure is not None:
+                figP = px.line(x=x, y=self.reaction_results.pressure.to("bar"))
+            elif self.reaction_conditions.set_pressure is not None:
+                figP = px.line(x=x, y=self.reaction_conditions.set_pressure.to("bar"))
+            figP.update_xaxes(title_text=x_text)
+            figP.update_yaxes(title_text="Pressure (bar)")
+            self.figures.append(PlotlyFigure(label='figure Pressure', figure=figP.to_plotly_json()))
+        
+        fig0 = go.Figure()
+        for i,c in enumerate(self.reaction_results.products):
+            fig0.add_trace(go.Scatter(x=x, y=self.reaction_results.products[i].selectivity, name=self.reaction_results.products[i].name))
+        fig0.update_layout(title_text="Selectivity", showlegend=True)
+        fig0.update_xaxes(title_text="measurement points")
+        fig0.update_yaxes(title_text="Selectivity (%)")
+        self.figures.append(PlotlyFigure(label='figure Selectivity', figure=fig0.to_plotly_json()))
+
+        fig1 = go.Figure()
+        for i,c in enumerate(self.reaction_results.reactants_conversions):
+            fig1.add_trace(go.Scatter(x=x, y=self.reaction_results.reactants_conversions[i].conversion, name=self.reaction_results.reactants_conversions[i].name))
+        fig1.update_layout(title_text="Conversion", showlegend=True)
+        fig1.update_xaxes(title_text=x_text)
+        fig1.update_yaxes(title_text="Conversion (%)")
+        self.figures.append(PlotlyFigure(label='figure Conversion', figure=fig1.to_plotly_json()))
+
+        if self.reaction_results.rates is not None:
+            fig = go.Figure()
+            for i,c in enumerate(self.reaction_results.rates):
+                fig.add_trace(go.Scatter(x=x, y=self.reaction_results.rates[i].rate, name=self.reaction_results.rates[i].name))
+            fig.update_layout(title_text="Rates", showlegend=True)
+            fig.update_xaxes(title_text=x_text)
+            fig.update_yaxes(title_text="reaction rates")
+            self.figures.append(PlotlyFigure(label='Rates', figure=fig.to_plotly_json()))
+            # try:
+            #     fig2 = px.line(x=self.reaction_results.temperature.to('celsius'), y=[self.reaction_results.rates[0].reaction_rate])
+            #     fig2.update_xaxes(title_text="Temperature (°C)")
+            #     fig2.update_yaxes(title_text="reaction rate (mmol(H2)/gcat/min)")
+            #     self.figures.append(PlotlyFigure(label='figure rates', figure=fig2.to_plotly_json()))
+            # except:
+            #     print("No rates defined")
+
+        for i,c in enumerate(self.reaction_results.reactants_conversions):
+                name=self.reaction_results.reactants_conversions[i].name
+                fig = go.Figure()
+                for j,c in enumerate(self.reaction_results.products):
+                    fig.add_trace(go.Scatter(x=self.reaction_results.reactants_conversions[i].conversion, y=self.reaction_results.products[j].selectivity, name=self.reaction_results.products[j].name, mode='markers'))
+                fig.update_layout(title_text="S-X plot "+ str(i), showlegend=True)
+                fig.update_xaxes(title_text='Conversion '+ name ) 
+                fig.update_yaxes(title_text='Selectivity')
+                self.figures.append(PlotlyFigure(label='S-X plot '+ name+" Conversion", figure=fig.to_plotly_json()))
+        
+        return
+    
 
 class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, EntryData):
     m_def = Section(

@@ -75,7 +75,9 @@ class Reagent(ArchiveSection):
         '''
         super(Reagent, self).normalize(archive, logger)
         
-        if self.name in ['C5-1', 'C6-1', 'nC5', 'nC6','Unknown','inert']:
+        if self.name is None:
+            return
+        if self.name in ['C5-1', 'C6-1', 'nC5', 'nC6','Unknown','inert','P>=5C']:
             return
         elif self.name == 'n-Butene':
             self.name = '1-butene'
@@ -86,9 +88,11 @@ class Reagent(ArchiveSection):
         # elif self.name == 'acetic_acid':
         #     self.name = 'acetic acid'
         if self.name and self.pure_component is None:
+            import time
             self.pure_component = PubChemPureSubstanceSection(
                 name=self.name
             )
+            time.sleep(1)
             self.pure_component.normalize(archive, logger)
         
         if self.pure_component is not None and self.pure_component.iupac_name is None:
@@ -99,7 +103,6 @@ class Reagent(ArchiveSection):
             self.pure_component.iupac_name = 'carbon monoxide'
             self.pure_component.molecular_formula = 'CO'
             self.pure_component.molecular_mass = 28.01
-            self.pure_component.smile = 'C#O'
             self.pure_component.inchi = 'InChI=1S/CO/c1-2'
             self.pure_component.inchi_key = 'UGFAIRIUMAVXCW-UHFFFAOYSA-N'
             self.pure_component.cas_number = '630-08-0'
