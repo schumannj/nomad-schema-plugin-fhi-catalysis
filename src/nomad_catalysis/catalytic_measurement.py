@@ -655,7 +655,8 @@ class CatalyticReactionData_core(ArchiveSection):
         
         if self.products is not None:
             for product in self.products:
-                product.normalize(archive, logger)
+                if product.pure_component is None or product.pure_component == []:
+                    product.normalize(archive, logger)
 
 class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSection):
 

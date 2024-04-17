@@ -811,7 +811,8 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
         if self.reaction_conditions is not None:
             reagents = []
             for reagent in self.reaction_conditions.reagents:
-                reagent.normalize(archive, logger)
+                if reagent.pure_component is None or reagent.pure_component == []:
+                    reagent.normalize(archive, logger)
                 reagents.append(reagent)
             self.reaction_conditions.reagents = reagents
 
@@ -890,9 +891,9 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
         if self.reaction_results.temperature is not None or self.reaction_conditions.set_temperature is not None:
             fig = go.Figure()
             if self.reaction_results.temperature is not None and self.reaction_results.temperature !=[]:
-                fig = px.line(x=x, y=self.reaction_results.temperature.to("celsius"))
+                fig = px.line(x=x, y=self.reaction_results.temperature.to("celsius"), markers=True)
             elif self.reaction_conditions.set_temperature is not None:
-                fig = px.line(x=x, y=self.reaction_conditions.set_temperature.to("celsius"))
+                fig = px.line(x=x, y=self.reaction_conditions.set_temperature.to("celsius"), markers=True)
             fig.update_xaxes(title_text=x_text)
             fig.update_yaxes(title_text="Temperature (°C)")
             self.figures.append(PlotlyFigure(label='figure Temperature', figure=fig.to_plotly_json()))
@@ -900,9 +901,9 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
         if self.reaction_results.pressure is not None or self.reaction_conditions.set_pressure is not None:
             figP = go.Figure()
             if self.reaction_results.pressure is not None:
-                figP = px.line(x=x, y=self.reaction_results.pressure.to("bar"))
+                figP = px.line(x=x, y=self.reaction_results.pressure.to("bar"), markers=True)
             elif self.reaction_conditions.set_pressure is not None:
-                figP = px.line(x=x, y=self.reaction_conditions.set_pressure.to("bar"))
+                figP = px.line(x=x, y=self.reaction_conditions.set_pressure.to("bar"), markers=True)
             figP.update_xaxes(title_text=x_text)
             figP.update_yaxes(title_text="Pressure (bar)")
             self.figures.append(PlotlyFigure(label='figure Pressure', figure=figP.to_plotly_json()))
@@ -929,7 +930,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
                 fig.add_trace(go.Scatter(x=x, y=self.reaction_results.rates[i].rate, name=self.reaction_results.rates[i].name))
             fig.update_layout(title_text="Rates", showlegend=True)
             fig.update_xaxes(title_text=x_text)
-            fig.update_yaxes(title_text="reaction rates (g product/g cat/h)")
+            fig.update_yaxes(title_text="rates (g product/g cat/h)")
             self.figures.append(PlotlyFigure(label='Rates', figure=fig.to_plotly_json()))
             # try:
             #     fig2 = px.line(x=self.reaction_results.temperature.to('celsius'), y=[self.reaction_results.rates[0].reaction_rate])
