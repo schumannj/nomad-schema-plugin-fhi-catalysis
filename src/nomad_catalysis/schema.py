@@ -310,8 +310,9 @@ class ReactorFilling(ArchiveSection):
         super(ReactorFilling, self).normalize(archive, logger)
 
         if self.sample_reference is None:
-            if self.m_root().data.samples != []:
-                self.sample_reference = self.m_root().data.samples[0].reference
+            if self.m_root().data.samples != []: 
+                if self.m_root().data.samples[0].reference is not None:
+                    self.sample_reference = self.m_root().data.samples[0].reference
         if self.sample_reference is not None:
             if self.m_root().data.samples == []:
                 sample1_reference = CompositeSystemReference(reference=self.sample_reference)
@@ -328,14 +329,6 @@ class ReactorFilling(ArchiveSection):
 
 
 class CatalyticReaction_core(Measurement, ArchiveSection):
-
-    # sample_reference = Quantity(
-    #     type=CatalystSample,
-    #     description="""
-    #     The link to the entry of the catalyst sample used in the experiment.
-    #     """,
-    #     a_eln=dict(component='ReferenceEditQuantity')
-    # )
 
     reaction_class = Quantity(
         type=str,
@@ -896,7 +889,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
 
         if self.reaction_results.temperature is not None or self.reaction_conditions.set_temperature is not None:
             fig = go.Figure()
-            if self.reaction_results.temperature is not None:
+            if self.reaction_results.temperature is not None and self.reaction_results.temperature !=[]:
                 fig = px.line(x=x, y=self.reaction_results.temperature.to("celsius"))
             elif self.reaction_conditions.set_temperature is not None:
                 fig = px.line(x=x, y=self.reaction_conditions.set_temperature.to("celsius"))
@@ -936,7 +929,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
                 fig.add_trace(go.Scatter(x=x, y=self.reaction_results.rates[i].rate, name=self.reaction_results.rates[i].name))
             fig.update_layout(title_text="Rates", showlegend=True)
             fig.update_xaxes(title_text=x_text)
-            fig.update_yaxes(title_text="reaction rates")
+            fig.update_yaxes(title_text="reaction rates (g product/g cat/h)")
             self.figures.append(PlotlyFigure(label='Rates', figure=fig.to_plotly_json()))
             # try:
             #     fig2 = px.line(x=self.reaction_results.temperature.to('celsius'), y=[self.reaction_results.rates[0].reaction_rate])
@@ -953,7 +946,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
                     fig.add_trace(go.Scatter(x=self.reaction_results.reactants_conversions[i].conversion, y=self.reaction_results.products[j].selectivity, name=self.reaction_results.products[j].name, mode='markers'))
                 fig.update_layout(title_text="S-X plot "+ str(i), showlegend=True)
                 fig.update_xaxes(title_text='Conversion '+ name ) 
-                fig.update_yaxes(title_text='Selectivity')
+                fig.update_yaxes(title_text='Selectivity (%)')
                 self.figures.append(PlotlyFigure(label='S-X plot '+ name+" Conversion", figure=fig.to_plotly_json()))
         
         return
