@@ -638,13 +638,13 @@ class ReactorSetup(ArchiveSection):
 
 class CatalyticReactionData_core(ArchiveSection):
     temperature = Quantity(
-        type=np.float64, shape=['*'], unit='°C')
+        type=np.float64, shape=['*'], unit='°C', a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
     pressure = Quantity(
-        type=np.float64, shape=['*'], unit='bar')
+        type=np.float64, shape=['*'], unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
-    runs = Quantity(type=np.float64, shape=['*'])
-    time_on_stream = Quantity(type=np.float64, shape=['*'], unit='hour')
+    runs = Quantity(type=np.float64, shape=['*'], a_eln=ELNAnnotation(component='NumberEditQuantity'))
+    time_on_stream = Quantity(type=np.float64, shape=['*'], unit='hour', a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
     reactants_conversions = SubSection(section_def=Reactant, repeats=True)
     rates = SubSection(section_def=Rates, repeats=True)
@@ -662,5 +662,5 @@ class CatalyticReactionData(PlotSection, CatalyticReactionData_core, ArchiveSect
 
     c_balance = Quantity(
         type=np.dtype(
-            np.float64), shape=['*'])
+            np.float64), shape=['*'], a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
