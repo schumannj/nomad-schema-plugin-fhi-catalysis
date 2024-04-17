@@ -478,14 +478,14 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
         populate_catalyst_sample_info(archive, self, logger)
 
 
-class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
+class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData):
     """
     This schema is originally adapted to map the data of the clean Oxidation dataset (JACS,
     https://doi.org/10.1021/jacs.2c11117) The descriptions in the quantities
     represent the instructions given to the user who manually curated the data. The schema has since been extendet to match other, similar datasets, with multiple products.
     """
     m_def = Section(
-        label='Heterogeneous Catalysis - Activity Test Clean Data',
+        label='Heterogeneous Catalysis - Catalytic Reaction (filled by Clean Data Table)',
         a_eln=ELNAnnotation(properties=dict(order= ['name','data_file', 'reaction_name', 'reaction_class',
                             'experimenter', 'location', 'experiment_handbook'])),
         categories=[UseCaseElnCategory]
@@ -507,7 +507,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
     reaction_results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
 
     def normalize(self, archive, logger):
-        super(CatalyticReaction, self).normalize(archive, logger)
+        super(CatalyticReactionCleanData, self).normalize(archive, logger)
         if (self.data_file is None):
             return
 
@@ -745,14 +745,25 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             figP.update_yaxes(title_text="Pressure (bar)")
             self.figures.append(PlotlyFigure(label='figure Pressure', figure=figP.to_plotly_json()))
         
-        fig0 = go.Figure()
-        for i,c in enumerate(self.reaction_results.products):
-            fig0.add_trace(go.Scatter(x=self.reaction_results.runs, y=self.reaction_results.products[i].selectivity, name=self.reaction_results.products[i].name))
-        fig0.update_layout(title_text="Selectivity", showlegend=True)
-        fig0.update_xaxes(title_text="measurement points")
-        fig0.update_yaxes(title_text="Selectivity (%)")
-        self.figures.append(PlotlyFigure(label='figure Selectivity', figure=fig0.to_plotly_json()))
-
+        if self.reaction_results is not None:
+            if self.reaction_results.products is not None:
+                if self.reaction_results.products[0].selectivity is not None:
+                    fig0 = go.Figure()
+                    for i,c in enumerate(self.reaction_results.products):
+                        fig0.add_trace(go.Scatter(x=x, y=self.reaction_results.products[i].selectivity, name=self.reaction_results.products[i].name))
+                    fig0.update_layout(title_text="Selectivity", showlegend=True)
+                    fig0.update_xaxes(title_text=x_text)
+                    fig0.update_yaxes(title_text="Selectivity (%)")
+                    self.figures.append(PlotlyFigure(label='figure Selectivity', figure=fig0.to_plotly_json()))
+                elif self.reaction_results.products[0].gas_concentration_out is not None:
+                    fig0 = go.Figure()
+                    for i,c in enumerate(self.reaction_results.products):
+                        fig0.add_trace(go.Scatter(x=x, y=self.reaction_results.products[i].gas_concentration_out, name=self.reaction_results.products[i].name))
+                    fig0.update_layout(title_text="Gas concentration out", showlegend=True)
+                    fig0.update_xaxes(title_text=x_text)
+                    fig0.update_yaxes(title_text="Gas concentration out (%)")
+                    self.figures.append(PlotlyFigure(label='figure Gas concentration out', figure=fig0.to_plotly_json()))
+        
         fig1 = go.Figure()
         for i,c in enumerate(self.reaction_results.reactants_conversions):
             fig1.add_trace(go.Scatter(x=x, y=self.reaction_results.reactants_conversions[i].conversion, name=self.reaction_results.reactants_conversions[i].name))
@@ -777,22 +788,24 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
             # except:
             #     print("No rates defined")
 
-        for i,c in enumerate(self.reaction_results.reactants_conversions):
-                name=self.reaction_results.reactants_conversions[i].name
-                fig = go.Figure()
-                for j,c in enumerate(self.reaction_results.products):
-                    fig.add_trace(go.Scatter(x=self.reaction_results.reactants_conversions[i].conversion, y=self.reaction_results.products[j].selectivity, name=self.reaction_results.products[j].name, mode='markers'))
-                fig.update_layout(title_text="S-X plot "+ str(i), showlegend=True)
-                fig.update_xaxes(title_text='Conversion '+ name ) 
-                fig.update_yaxes(title_text='Selectivity')
-                self.figures.append(PlotlyFigure(label='S-X plot '+ name+" Conversion", figure=fig.to_plotly_json()))
-        
+        if self.reaction_results.reactants_conversions is not None and self.reaction_results.products is not None:
+            if self.reaction_results.products[0].selectivity is not None:
+                for i,c in enumerate(self.reaction_results.reactants_conversions):
+                    name=self.reaction_results.reactants_conversions[i].name
+                    fig = go.Figure()
+                    for j,c in enumerate(self.reaction_results.products):
+                        fig.add_trace(go.Scatter(x=self.reaction_results.reactants_conversions[i].conversion, y=self.reaction_results.products[j].selectivity, name=self.reaction_results.products[j].name, mode='markers'))
+                    fig.update_layout(title_text="S-X plot "+ str(i), showlegend=True)
+                    fig.update_xaxes(title_text='Conversion '+ name ) 
+                    fig.update_yaxes(title_text='Selectivity')
+                    self.figures.append(PlotlyFigure(label='S-X plot '+ name+" Conversion", figure=fig.to_plotly_json()))
+            
         return
 
-class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData):
+class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
     m_def = Section(
-        label='Heterogeneous Catalysis - Catalytic Reaction from JSON',
+        label='Heterogeneous Catalysis - Catalytic Reaction (filled manual/ by json directly)',
         a_eln=ELNAnnotation(properties=dict(order= ['name','data_file', 'reaction_name', 'reaction_class',
                             'experimenter', 'location', 'experiment_handbook'])),
         categories=[UseCaseElnCategory]
@@ -806,7 +819,7 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
     reaction_results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
 
     def normalize(self, archive, logger):
-        super(CatalyticReaction_from_json, self).normalize(archive, logger)
+        super(CatalyticReaction, self).normalize(archive, logger)
         
         if self.reaction_conditions is not None:
             reagents = []
@@ -846,8 +859,11 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
 
         add_activity(archive)
 
-        if conversions_results is not None:
-            archive.results.properties.catalytic.reaction.reactants = conversions_results
+        try:
+            if conversions_results is not None:
+                archive.results.properties.catalytic.reaction.reactants = conversions_results
+        except UnboundLocalError:
+            pass
         if self.reaction_results.temperature is not None:
             archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
         elif self.reaction_conditions.set_temperature is not None:
@@ -955,8 +971,8 @@ class CatalyticReaction_from_json(CatalyticReaction_core, PlotSection, EntryData
 
 class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, EntryData):
     m_def = Section(
-        label='Heterogeneous Catalysis - Activity Test NH3 Decomposition',
-        hide=['description',],
+        label='Heterogeneous Catalysis - Activity Test NH3 Decomposition (filled by h5 file)',
+        hide=['description'],
         a_eln=ELNAnnotation(properties=dict(order= ['name','data_file_h5', 'reaction_name','reaction_class',
                             'experimenter', 'location', 'experiment_handbook'])),
         categories=[UseCaseElnCategory],
@@ -1124,9 +1140,11 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
             archive.results.properties.catalytic.reaction.products = products_results
         if rates is not None:
             archive.results.properties.catalytic.reaction.rates = rates
-        if self.reaction_name is not None:
-            archive.results.properties.catalytic.reaction.name = self.reaction_name
-            archive.results.properties.catalytic.reaction.type = self.reaction_class
+        if self.reaction_name is None:
+            self.reaction_name = 'Ammonia decomposition'
+            self.reaction_class = 'Cracking'
+        archive.results.properties.catalytic.reaction.name = self.reaction_name
+        archive.results.properties.catalytic.reaction.type = self.reaction_class
 
         populate_catalyst_sample_info(archive, self, logger)
 
