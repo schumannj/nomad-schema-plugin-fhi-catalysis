@@ -971,8 +971,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
 class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, EntryData):
     m_def = Section(
-        label='Heterogeneous Catalysis - Activity Test NH3 Decomposition (filled by h5 file)',
-        hide=['description'],
+        label='Heterogeneous Catalysis - Catalytic Reaction NH3 Decomposition (filled by h5 file from Haber)',
         a_eln=ELNAnnotation(properties=dict(order= ['name','data_file_h5', 'reaction_name','reaction_class',
                             'experimenter', 'location', 'experiment_handbook'])),
         categories=[UseCaseElnCategory],
