@@ -100,7 +100,7 @@ class Preparation(ArchiveSection):
             component='EnumEditQuantity', props=dict(
                 suggestions=['precipitation', 'hydrothermal', 'flame spray pyrolysis',
                              'impregnation', 'calcination', 'unknown']),
-            iris=['https://w3id.org/nfdi4cat/voc4cat_0007016'])
+            links=['https://w3id.org/nfdi4cat/voc4cat_0007016'])
     )
 
     preparator = Quantity(
@@ -140,7 +140,7 @@ class SurfaceArea(ArchiveSection):
         unit=("m**2/g"),
         a_eln=dict(
             component='NumberEditQuantity', defaultDisplayUnit='m**2/g',
-            iris=['https://w3id.org/nfdi4cat/voc4cat_0000013'])
+            links=['https://w3id.org/nfdi4cat/voc4cat_0000013'])
     )
 
     method_surface_area_determination = Quantity(
@@ -198,7 +198,8 @@ class CatalystSample(CompositeSystem, EntryData):
             component='EnumEditQuantity', props=dict(
                 suggestions=['bulk catalyst', 'supported catalyst', 'single crystal','metal','oxide',
                              '2D catalyst', 'other', 'unkown']),
-            iris=['https://w3id.org/nfdi4cat/voc4cat_0007014']),
+        ),
+        links=['https://w3id.org/nfdi4cat/voc4cat_0007014'],
     )
 
     form = Quantity(
@@ -209,7 +210,8 @@ class CatalystSample(CompositeSystem, EntryData):
           """,
         a_eln=dict(component='EnumEditQuantity', props=dict(
             suggestions=['sieve fraction', 'powder', 'thin film']),
-            iris=['https://w3id.org/nfdi4cat/voc4cat_0000016'])
+        ),
+        links=['https://w3id.org/nfdi4cat/voc4cat_0000016'],
     )
 
     def normalize(self, archive, logger):
@@ -228,7 +230,7 @@ class CatalystSample(CompositeSystem, EntryData):
         if self.lab_id is not None:
             from nomad.search import search, MetadataPagination
             
-            catalyst_sample= self.m_root().metadata.entry_id
+            catalyst_sample = self.m_root().metadata.entry_id
             query = {'entry_references.target_entry_id': catalyst_sample}
             search_result = search(
                 owner='all',
@@ -336,9 +338,9 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
         A highlevel classification of the studied reaction.
         """,
         a_eln=dict(component='EnumEditQuantity', props=dict(suggestions=[
-            'Oxidation', 'Hydrogenation', 'Dehydrogenation', 'Cracking', 'Isomerisation', 'Coupling']
+            'oxidation', 'hydrogenation', 'dehydrogenation', 'cracking', 'isomerisation', 'coupling']
         )),
-        iris=['https://w3id.org/nfdi4cat/voc4cat_0007010'])
+        links=['https://w3id.org/nfdi4cat/voc4cat_0007010'])
 
     reaction_name = Quantity(
         type=str,
@@ -347,10 +349,10 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
         """,
         a_eln=dict(
             component='EnumEditQuantity', props=dict(suggestions=[
-                'Alkane Oxidation', 'Oxidation of Ethane', 'Oxidation of Propane',
-                'Oxidation of Butane', 'CO hydrogenation', 'Methanol Synthesis', 'Fischer-Tropsch',
-                'Water gas shift reaction', 'Ammonia Synthesis', 'Ammonia decomposition'])),
-        iris=['https://w3id.org/nfdi4cat/voc4cat_0007009'])
+                'ethane oxidation', 'propane oxidation',
+                'butane oxidation', 'CO hydrogenation', 'methanol synthesis', 'Fischer-Tropsch reaction',
+                'water gas shift reaction', 'ammonia synthesis', 'ammonia decomposition'])),
+        links=['https://w3id.org/nfdi4cat/voc4cat_0007009'])
 
 
     experiment_handbook = Quantity(
@@ -359,8 +361,8 @@ class CatalyticReaction_core(Measurement, ArchiveSection):
         """,
         type=str,
         shape=[],
-        a_eln=dict(component='FileEditQuantity',
-                   iris=['https://w3id.org/nfdi4cat/voc4cat_0007012'])
+        a_eln=dict(component='FileEditQuantity'),
+        links=['https://w3id.org/nfdi4cat/voc4cat_0007012']
     )
 
     location = Quantity(
@@ -563,6 +565,11 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
                     reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.gram
                 elif 'mg' in col_split[1]:
                     reactor_filling.catalyst_mass = catalyst_mass_vector[0]*ureg.milligram
+            if col_split[0] == "set_temperature":
+                if "K" in col_split[1]:
+                    feed.set_temperature = np.nan_to_num(data[col])	
+                else:
+                    feed.set_temperature = np.nan_to_num(data[col])*ureg.celsius
             if col_split[0] == "temperature":
                 if "K" in col_split[1]:
                     cat_data.temperature = np.nan_to_num(data[col])
@@ -864,20 +871,22 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
                 archive.results.properties.catalytic.reaction.reactants = conversions_results
         except UnboundLocalError:
             pass
-        if self.reaction_results.temperature is not None:
-            archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
-        elif self.reaction_conditions.set_temperature is not None:
-            archive.results.properties.catalytic.reaction.temperature = self.reaction_conditions.set_temperature
-        if self.reaction_results.pressure is not None:
-            archive.results.properties.catalytic.reaction.pressure = self.reaction_results.pressure
-        elif self.reaction_conditions.set_pressure is not None:
-            archive.results.properties.catalytic.reaction.pressure = self.reaction_conditions.set_pressure
-        if self.reaction_conditions.weight_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.reaction_conditions.weight_hourly_space_velocity
-        if self.reaction_conditions.gas_hourly_space_velocity is not None:
-            archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.gas_hourly_space_velocity
-        if product_results is not None and product_results != []:
-            archive.results.properties.catalytic.reaction.products = product_results
+        if self.reaction_results is not None:
+            if self.reaction_results.temperature is not None:
+                archive.results.properties.catalytic.reaction.temperature = self.reaction_results.temperature
+            elif self.reaction_conditions.set_temperature is not None:
+                archive.results.properties.catalytic.reaction.temperature = self.reaction_conditions.set_temperature
+            if self.reaction_results.pressure is not None:
+                archive.results.properties.catalytic.reaction.pressure = self.reaction_results.pressure
+            elif self.reaction_conditions.set_pressure is not None:
+                archive.results.properties.catalytic.reaction.pressure = self.reaction_conditions.set_pressure
+            if product_results is not None and product_results != []:
+                archive.results.properties.catalytic.reaction.products = product_results
+        if self.reaction_conditions is not None:
+            if self.reaction_conditions.weight_hourly_space_velocity is not None:
+                archive.results.properties.catalytic.reaction.weight_hourly_space_velocity = self.reaction_conditions.weight_hourly_space_velocity
+            if self.reaction_conditions.gas_hourly_space_velocity is not None:
+                archive.results.properties.catalytic.reaction.gas_hourly_space_velocity = self.reaction_conditions.gas_hourly_space_velocity
         if self.reaction_name is not None:
             archive.results.properties.catalytic.reaction.name = self.reaction_name
         if self.reaction_class is not None:
