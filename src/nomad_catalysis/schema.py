@@ -61,7 +61,12 @@ def populate_catalyst_sample_info(archive, self, logger):
     if self.samples is not None and self.samples != []:
         if self.samples[0].reference is not None:
             add_catalyst(archive)
-        
+
+            if self.samples[0].reference.name is not None:
+                archive.results.properties.catalytic.catalyst_synthesis.catalyst_name = self.samples[0].reference.name
+                if not archive.results.material:
+                    archive.results.material = Material()
+                archive.results.material.material_name = self.samples[0].reference.name
             if self.samples[0].reference.catalyst_type is not None:
                 archive.results.properties.catalytic.catalyst_synthesis.catalyst_type = self.samples[0].reference.catalyst_type
             if self.samples[0].reference.preparation_details is not None:
@@ -1095,8 +1100,11 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         # feed.flow_rates_total = analysed['MassFlow (Total Gas) [mln|min]']
         conversion = Reactant_data(name='ammonia', conversion=np.nan_to_num(analysed['NH3 Conversion [%]']))
         conversions.append(conversion)
-        conversion2 = Reactant_result(name='ammonia', conversion=analysed['NH3 Conversion [%]'])
-        # conversion2.conversion = analysed['NH3 Conversion [%]'].reshape(-1,10).mean(axis=1)  ## trying to reduce size of array
+        #reducing array size for results section:
+        if len(analysed['NH3 Conversion [%]']) > 50:
+            conversion2 = Reactant_result(name='ammonia', conversion=analysed['NH3 Conversion [%]'][50::100], gas_concentration_in=[100]*len(analysed['NH3 Conversion [%]'][50::100]))
+        else:
+            conversion2 = Reactant_result(name='ammonia', conversion=analysed['NH3 Conversion [%]'], gas_concentration_in=[100]*len(analysed['NH3 Conversion [%]']))
         conversions2.append(conversion2)
         rate = Rates(name='molecular hydrogen', reaction_rate=np.nan_to_num(analysed['Space Time Yield [mmolH2 gcat-1 min-1]']*ureg.mmol/ureg.g/ureg.minute))
         rates.append(rate)
@@ -1136,12 +1144,17 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         self.products = products_results
 
         add_activity(archive)
+        #reduce the size of the arrays for results section:
+        if len(cat_data.temperature) > 50:
+            temp_results = cat_data.temperature[50::100]
+            
+
         if self.reaction_conditions.set_pressure is None and self.reaction_results.pressure is None:
             archive.results.properties.catalytic.reaction.pressure = [1.0]*ureg.bar
         if conversions2 is not None:
             archive.results.properties.catalytic.reaction.reactants = conversions2
         if cat_data.temperature is not None:
-            archive.results.properties.catalytic.reaction.temperature = cat_data.temperature
+            archive.results.properties.catalytic.reaction.temperature = temp_results
         if cat_data.pressure is not None:
             archive.results.properties.catalytic.reaction.pressure = cat_data.pressure
         if products_results != []:
@@ -1149,8 +1162,8 @@ class CatalyticReaction_NH3decomposition(CatalyticReaction_core, PlotSection, En
         if rates is not None:
             archive.results.properties.catalytic.reaction.rates = rates
         if self.reaction_name is None:
-            self.reaction_name = 'Ammonia decomposition'
-            self.reaction_class = 'Cracking'
+            self.reaction_name = 'ammonia decomposition'
+            self.reaction_class = 'cracking'
         archive.results.properties.catalytic.reaction.name = self.reaction_name
         archive.results.properties.catalytic.reaction.type = self.reaction_class
 
