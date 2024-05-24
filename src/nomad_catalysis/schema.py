@@ -398,8 +398,8 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
         categories=[UseCaseElnCategory]
     )
     reaction_conditions = SubSection(section_def=ReactionConditionsSimple, a_eln=ELNAnnotation(label='Reaction Conditions'))
-    reactor_filling = SubSection(section_def=ReactorFilling)
-    reactor_setup = SubSection(section_def=ReactorSetup)
+    reactor_filling = SubSection(section_def=ReactorFilling, a_eln=ELNAnnotation(label='Reactor Filling'))
+    reactor_setup = SubSection(section_def=ReactorSetup, a_eln=ELNAnnotation(label='Reactor Setup'))
     reaction_results = SubSection(section_def=CatalyticReactionData_core, a_eln=ELNAnnotation(label='Reaction Results'))
     
     def normalize(self, archive, logger):
