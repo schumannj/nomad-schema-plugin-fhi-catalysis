@@ -161,6 +161,15 @@ class SurfaceArea(ArchiveSection):
                              'unknown']))
     )
 
+    dispersion = Quantity(
+        type=np.float64,
+        shape=[],
+        description="""
+        The dispersion of the catalyst in %.
+        """,
+        a_eln=dict(component='NumberEditQuantity')
+    )
+
     def normalize(self, archive, logger):
         super(SurfaceArea, self).normalize(archive, logger)
 
