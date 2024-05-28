@@ -507,9 +507,6 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
         categories=[UseCaseElnCategory]
     )
 
-    reprocess_datafile = Quantity(
-        type=bool, a_eln=ELNAnnotation(component='BoolEditQuantity', default=True))
-    
     data_file = Quantity(
         type=str,
         description="""
@@ -534,21 +531,6 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
                 self.data_file)[-1] != ".csv" and os.path.splitext(
                 self.data_file)[-1] != ".xlsx")):
             raise ValueError("Unsupported file format. Only xlsx and .csv files")
-
-        if self.reprocess_datafile is False:
-            if self.reaction_name is not None:
-                archive.results.properties.catalytic.reaction.name = self.reaction_name
-            if self.reaction_class is not None:
-                archive.results.properties.catalytic.reaction.type = self.reaction_class
-        
-            if self.samples is not None and self.samples != []:
-                if self.samples[0].lab_id is not None and self.samples[0].reference is None:
-                    sample = CompositeSystemReference(lab_id=self.samples[0].lab_id, name=self.samples[0].name)
-                    sample.normalize(archive, logger)
-                    self.samples = []
-                    self.samples.append(sample)
-                populate_catalyst_sample_info(archive, self, logger)
-            return
 
         if self.data_file.endswith(".csv"):
             with archive.m_context.raw_file(self.data_file) as f:
@@ -754,8 +736,6 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
                 self.samples.append(sample)
             populate_catalyst_sample_info(archive, self, logger)
         
-        self.reprocess_datafile = False
-
         ###Figures definitions###
         self.figures = []
         if self.reaction_results.time_on_stream is not None:
