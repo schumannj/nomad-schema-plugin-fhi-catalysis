@@ -146,7 +146,7 @@ class CatalyticSectionConditions_static(ArchiveSection):
         type=np.float64, unit='hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='hour'))
 
     weight_hourly_space_velocity = Quantity(
-        type=np.float64, unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='mL/(g*hour)'))
 
     contact_time = Quantity(
         type=np.float64, unit='g*s/mL', a_eln=ELNAnnotation(label='W|F', component='NumberEditQuantity'))
@@ -409,16 +409,16 @@ class ReactionConditions(PlotSection, ArchiveSection):
         type=np.float64, shape=['*'], unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='bar'))
     
     set_total_flow_rate = Quantity(
-        type=np.float64, shape=['*'], unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL/minute'))
     
     weight_hourly_space_velocity = Quantity(
-        type=np.float64, shape=['*'], unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='mL/(g*hour)'))
 
     contact_time = Quantity(
-        type=np.float64, shape=['*'], unit='g*s/mL', a_eln=ELNAnnotation(label='W|F'))
+        type=np.float64, shape=['*'], unit='g*s/mL', a_eln=ELNAnnotation(label='W|F', defaultDisplayUnit='g*s/mL', component='NumberEditQuantity'))
 
     gas_hourly_space_velocity = Quantity(
-        type=np.float64, shape=['*'], unit='1/hour', a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, shape=['*'], unit='1/hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='1/hour'))
 
     runs = Quantity(type=np.float64, shape=['*'])
 

@@ -283,28 +283,28 @@ class ReactorFilling(ArchiveSection):
     catalyst_name = Quantity(
         type=str, shape=[], a_eln=ELNAnnotation(component='StringEditQuantity'))
 
-    sample_reference = Quantity(
-        type=CatalystSample, description='A reference to the sample used for the measurement.',
-        a_eln=ELNAnnotation(component='ReferenceEditQuantity', label='Entity Reference'))
+    sample_section_reference = Quantity(
+        type=CompositeSystemReference, description='A reference to the sample used in the measurement.',
+        a_eln=ELNAnnotation(component='ReferenceEditQuantity', label='Sample Reference'))
 
     catalyst_mass = Quantity(
-        type=np.float64, shape=[], unit='mg', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, shape=[], unit='mg', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mg'))
 
     catalyst_density = Quantity(
-        type=np.float64, shape=[], unit='g/mL', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, shape=[], unit='g/mL', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='g/mL'))
 
     apparent_catalyst_volume = Quantity(
-        type=np.float64, shape=[], unit='mL', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, shape=[], unit='mL', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL'))
 
     catalyst_sievefraction_upper_limit = Quantity(
         type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='micrometer'))
     catalyst_sievefraction_lower_limit = Quantity(
         type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='micrometer'))
     particle_size = Quantity(
         type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='micrometer'))
     diluent = Quantity(
         type=str,
         shape=[],
@@ -317,25 +317,24 @@ class ReactorFilling(ArchiveSection):
     )
     diluent_sievefraction_upper_limit = Quantity(
         type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='micrometer'))
     diluent_sievefraction_lower_limit = Quantity(
         type=np.float64, shape=[], unit='micrometer',
-        a_eln=dict(component='NumberEditQuantity'))
+        a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='micrometer'))
 
     def normalize(self, archive, logger):
         super(ReactorFilling, self).normalize(archive, logger)
 
-        if self.sample_reference is None:
+        if self.sample_section_reference is None:
             if self.m_root().data.samples != []: 
-                if self.m_root().data.samples[0].reference is not None:
-                    self.sample_reference = self.m_root().data.samples[0].reference
-        if self.sample_reference is not None:
-            if self.m_root().data.samples == []:
-                sample1_reference = CompositeSystemReference(reference=self.sample_reference)
-                self.m_root().data.samples.append(sample1_reference)
-            elif self.m_root().data.samples[0].reference is None:
-                self.m_root().data.samples[0].reference = self.sample_reference
-            self.sample_reference.normalize(archive, logger)
+                    self.sample_reference = self.m_root().data.samples[0]
+        # if self.sample_section_reference is not None:
+        #     if self.m_root().data.samples == []:
+        #         sample1_reference = CompositeSystemReference(reference=self.sample_reference)
+        #         self.m_root().data.samples.append(sample1_reference)
+        #     elif self.m_root().data.samples[0].reference is None:
+        #         self.m_root().data.samples[0].reference = self.sample_reference
+        #     self.sample_reference.normalize(archive, logger)
 
         if self.catalyst_name is None and self.sample_reference is not None:
             self.catalyst_name = self.sample_reference.name
