@@ -20,9 +20,10 @@ import numpy as np
 
 from nomad.metainfo import (Quantity, SubSection, Section, Datetime,)
 from nomad.datamodel.data import ArchiveSection
-from nomad.datamodel.metainfo.basesections import (PubChemPureSubstanceSection)
+from nomad.datamodel.metainfo.basesections import (MeasurementResult, PubChemPureSubstanceSection)
 
-from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reaction)
+from nomad.datamodel.results import (Results, Properties, CatalyticProperties, Reaction, )
+from nomad.datamodel.results import ReactionConditions as ReactionConditions_results
 
 from nomad.datamodel.results import Reactant as Reactant_result
 
@@ -46,6 +47,8 @@ def add_activity(archive):
         archive.results.properties.catalytic = CatalyticProperties()
     if not archive.results.properties.catalytic.reaction:
         archive.results.properties.catalytic.reaction = Reaction()
+    if not archive.results.properties.catalytic.reaction.reaction_conditions:
+        archive.results.properties.catalytic.reaction.reaction_conditions = ReactionConditions_results()
 
 class Reagent(ArchiveSection):
     m_def = Section(label_quantity='name', description='a chemical substance present in the initial reaction mixture')
@@ -57,7 +60,7 @@ class Reagent(ArchiveSection):
     flow_rate = Quantity(
         type=np.float64, shape=['*'], unit='mL/minutes',
         description='Flow rate of reactant in feed.',
-        a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL/minutes'))
 
     pure_component = SubSection(section_def=PubChemPureSubstanceSection)
 
@@ -85,28 +88,40 @@ class Reagent(ArchiveSection):
             self.name = 'maleic anhydride'
         elif '_' in self.name:
             self.name = self.name.replace('_',' ')	
-        # elif self.name == 'acetic_acid':
-        #     self.name = 'acetic acid'
+
         if self.name and self.pure_component is None:
             import time
             self.pure_component = PubChemPureSubstanceSection(
                 name=self.name
             )
-            time.sleep(1)
-            self.pure_component.normalize(archive, logger)
-        
-        if self.pure_component is not None and self.pure_component.iupac_name is None:
-            if self.pure_component.molecular_formula == 'CO2':
+            if self.name == 'propionic acid':
+                self.pub_chem_id = 1032
+                self.pure_component.iupac_name = 'propanoic acid'
+                self.pure_component.molecular_formula = 'C3H6O2'
+                self.pure_component.molecular_mass = 74.08
+                return
+            elif self.name == 'CO' or self.name == 'carbon monoxide':
+                self.pub_chem_id = 281
+                self.pure_component.iupac_name = 'carbon monoxide'
+                self.pure_component.molecular_formula = 'CO'
+                self.pure_component.molecular_mass = 28.01
+                self.pure_component.inchi = 'InChI=1S/CO/c1-2'
+                self.pure_component.inchi_key = 'UGFAIRIUMAVXCW-UHFFFAOYSA-N'
+                self.pure_component.cas_number = '630-08-0'
+                return
+            elif self.name == 'CO2' or self.name == 'carbon dioxide':
+                self.pub_chem_id = 280
                 self.pure_component.iupac_name = 'carbon dioxide'
-
-        if self.name == "CO" or self.name == "carbon monoxide":
-            self.pure_component.iupac_name = 'carbon monoxide'
-            self.pure_component.molecular_formula = 'CO'
-            self.pure_component.molecular_mass = 28.01
-            self.pure_component.inchi = 'InChI=1S/CO/c1-2'
-            self.pure_component.inchi_key = 'UGFAIRIUMAVXCW-UHFFFAOYSA-N'
-            self.pure_component.cas_number = '630-08-0'
-
+                self.pure_component.molecular_formula = 'CO2'
+                self.pure_component.molecular_mass = 44.01
+                self.pure_component.inchi = 'InChI=1S/CO2/c2-1-3'
+                self.pure_component.inchi_key = 'CURLTUGMZLYLDI-UHFFFAOYSA-N'
+                self.pure_component.cas_number = '124-38-9'
+                return
+            else:
+                time.sleep(1)
+                self.pure_component.normalize(archive, logger)
+            
         if self.name is None and self.pure_component is not None:
             self.name = self.pure_component.molecular_formula
 
@@ -140,7 +155,7 @@ class CatalyticSectionConditions_static(ArchiveSection):
         type=np.float64, unit='bar', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='bar'))
 
     set_total_flow_rate = Quantity(
-        type=np.float64, unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity'))
+        type=np.float64, unit='mL/minute', a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL/minute'))
 
     duration = Quantity(
         type=np.float64, unit='hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='hour'))
@@ -149,10 +164,10 @@ class CatalyticSectionConditions_static(ArchiveSection):
         type=np.float64, unit='mL/(g*hour)', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='mL/(g*hour)'))
 
     contact_time = Quantity(
-        type=np.float64, unit='g*s/mL', a_eln=ELNAnnotation(label='W|F', component='NumberEditQuantity'))
+        type=np.float64, unit='g*s/mL', a_eln=ELNAnnotation(label='W|F', component='NumberEditQuantity', defaultDisplayUnit='g*s/mL'))
 
     gas_hourly_space_velocity = Quantity(
-        type=np.float64, unit='1/hour', a_eln=dict(component='NumberEditQuantity'))
+        type=np.float64, unit='1/hour', a_eln=dict(component='NumberEditQuantity', defaultDisplayUnit='1/hour'))
 
     datetime = Quantity(
         type=Datetime,
@@ -636,7 +651,7 @@ class ReactorSetup(ArchiveSection):
                               a_eln=dict(component='NumberEditQuantity'))
     
 
-class CatalyticReactionData_core(ArchiveSection):
+class CatalyticReactionData_core(MeasurementResult):
     temperature = Quantity(
         type=np.float64, shape=['*'], unit='°C', a_eln=ELNAnnotation(component='NumberEditQuantity'))
 
