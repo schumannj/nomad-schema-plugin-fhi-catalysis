@@ -60,7 +60,7 @@ class Reagent(ArchiveSection):
     flow_rate = Quantity(
         type=np.float64, shape=['*'], unit='mL/minutes',
         description='Flow rate of reactant in feed.',
-        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL/minutes'))
+        a_eln=ELNAnnotation(component='NumberEditQuantity', defaultDisplayUnit='mL/minute'))
 
     pure_component = SubSection(section_def=PubChemPureSubstanceSection)
 

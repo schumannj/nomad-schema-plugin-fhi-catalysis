@@ -68,7 +68,7 @@ def populate_catalyst_sample_info(archive, self, logger):
             if self.samples[0].reference.catalyst_type is not None:
                 if archive.results.properties.catalytic.catalyst.catalyst_type is None:
                     archive.results.properties.catalytic.catalyst.catalyst_type = []
-                    archive.results.properties.catalytic.catalyst.catalyst_type.append(self.samples[0].reference.catalyst_type)
+                archive.results.properties.catalytic.catalyst.catalyst_type.append(self.samples[0].reference.catalyst_type[0])
             if self.samples[0].reference.preparation_details is not None:
                 archive.results.properties.catalytic.catalyst.preparation_method = self.samples[0].reference.preparation_details.preparation_method
             if self.samples[0].reference.surface is not None:
@@ -419,7 +419,7 @@ class SimpleCatalyticReaction(CatalyticReaction_core, EntryData):
     #a_eln=ELNAnnotation(label='Reaction Results'))
     
     def normalize(self, archive, logger):
-        super(SimpleCatalyticReaction, self).normalize(archive, logger)
+        super().normalize(archive, logger)
 
         add_activity(archive)
 
