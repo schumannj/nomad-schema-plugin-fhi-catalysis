@@ -235,10 +235,15 @@ class CatalystSample(CompositeSystem, EntryData):
 
         add_catalyst(archive)
 
-        if self.catalyst_type is not None:
+        if isinstance(self.catalyst_type, str):
             if archive.results.properties.catalytic.catalyst.catalyst_type is None:
                 archive.results.properties.catalytic.catalyst.catalyst_type = []
-            archive.results.properties.catalytic.catalyst.catalyst_type.append(self.catalyst_type[0])
+            archive.results.properties.catalytic.catalyst.catalyst_type.append(self.catalyst_type)
+        elif isinstance(self.catalyst_type, list):
+            if archive.results.properties.catalytic.catalyst.catalyst_type is None:
+                archive.results.properties.catalytic.catalyst.catalyst_type = []
+            for i in self.catalyst_type:
+                archive.results.properties.catalytic.catalyst.catalyst_type.append(i)
         if self.preparation_details is not None:
             archive.results.properties.catalytic.catalyst.preparation_method = self.preparation_details.preparation_method
 
@@ -277,7 +282,7 @@ class CatalystSample(CompositeSystem, EntryData):
                     )
                 if archive.results.properties.catalytic.catalyst.characterization_methods is None:
                     archive.results.properties.catalytic.catalyst.characterization_methods = []
-                archive.results.properties.catalytic.catalyst.characterization_methods.append(methods)
+                archive.results.properties.catalytic.catalyst.characterization_methods.append(methods[0])
             else:
                 logger.warn(f'Found no entries with reference: "{catalyst_sample}".')
 
