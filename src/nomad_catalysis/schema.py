@@ -280,9 +280,10 @@ class CatalystSample(CompositeSystem, EntryData):
                         f'Found {search_result.pagination.total} entries with entry_id: '
                         f'"{catalyst_sample}". Will only check the the first 10 entries found for XRD method.'
                     )
-                if archive.results.properties.catalytic.catalyst.characterization_methods is None:
-                    archive.results.properties.catalytic.catalyst.characterization_methods = []
-                archive.results.properties.catalytic.catalyst.characterization_methods.append(methods[0])
+                if len(methods) > 1:
+                    if archive.results.properties.catalytic.catalyst.characterization_methods is None:
+                        archive.results.properties.catalytic.catalyst.characterization_methods = []
+                    archive.results.properties.catalytic.catalyst.characterization_methods.append(methods[0])
             else:
                 logger.warn(f'Found no entries with reference: "{catalyst_sample}".')
 
