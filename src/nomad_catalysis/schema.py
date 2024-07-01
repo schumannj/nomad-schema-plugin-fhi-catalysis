@@ -65,10 +65,14 @@ def populate_catalyst_sample_info(archive, self, logger):
                 if not archive.results.material:
                     archive.results.material = Material()
                 archive.results.material.material_name = self.samples[0].reference.name
-            if self.samples[0].reference.catalyst_type is not None:
+            if self.samples[0].reference.catalyst_type is not None and self.samples[0].reference.catalyst_type !=[]:
                 if archive.results.properties.catalytic.catalyst.catalyst_type is None:
                     archive.results.properties.catalytic.catalyst.catalyst_type = []
-                archive.results.properties.catalytic.catalyst.catalyst_type.append(self.samples[0].reference.catalyst_type[0])
+                if isinstance(self.samples[0].reference.catalyst_type, str):
+                    archive.results.properties.catalytic.catalyst.catalyst_type.append(self.samples[0].reference.catalyst_type)
+                elif isinstance(self.samples[0].reference.catalyst_type, list):
+                    for i in self.samples[0].reference.catalyst_type:
+                        archive.results.properties.catalytic.catalyst.catalyst_type.append(i)
             if self.samples[0].reference.preparation_details is not None:
                 archive.results.properties.catalytic.catalyst.preparation_method = self.samples[0].reference.preparation_details.preparation_method
             if self.samples[0].reference.surface is not None:
