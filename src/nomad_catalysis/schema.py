@@ -689,11 +689,11 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
                 products.append(product)
                 product_names.append(col_split[1])
 
-        if data['FHI-ID'] is not None:
+        if 'FHI-ID' in data.columns:
             sample.lab_id = str(data['FHI-ID'][0])
-        elif data['sample_id'] is not None:
+        elif 'sample_id' in data.columns: # is not None:
             sample.lab_id = str(data['sample_id'][0])
-        if data['catalyst'] is not None:
+        if 'catalyst' in data.columns: # is not None:
             sample.name = str(data['catalyst'][0])
 
         if sample != []:    #if sample information is available from data file
