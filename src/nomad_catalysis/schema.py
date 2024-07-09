@@ -735,6 +735,7 @@ class CatalyticReactionCleanData(CatalyticReaction_core, PlotSection, EntryData)
         cat_data.rates = rates
 
         self.reaction_conditions = feed
+        self.results = []
         self.results.append(cat_data)
 
         if self.reactor_filling is None and reactor_filling is not None:
@@ -880,8 +881,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         categories=[UseCaseElnCategory]
     )
 
-    reactor_setup = SubSection(section_def=ReactorSetup)
-    reactor_filling = SubSection(section_def=ReactorFilling)
+    reactor_setup = SubSection(section_def=ReactorSetup, a_eln=ELNAnnotation(label='Reactor Setup'))
+    reactor_filling = SubSection(section_def=ReactorFilling, a_eln=ELNAnnotation(label='Reactor Filling'))
 
     pretreatment = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Pretreatment'))
     reaction_conditions = SubSection(section_def=ReactionConditions, a_eln=ELNAnnotation(label='Reaction Conditions'))
@@ -891,7 +892,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
     #results = SubSection(section_def=CatalyticReactionData, a_eln=ELNAnnotation(label='Reaction Results'))
 
     def normalize(self, archive, logger):
-        #super().normalize(archive, logger)
+        super().normalize(archive, logger)
         
         if self.reaction_conditions is not None:
             reagents = []
@@ -906,6 +907,8 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
 
         if self.results is not None and self.results != []:
             self.results[0].normalize(archive, logger)
+            if len(self.results) > 1:
+                logger.warn('Several instances of results found. Only the first result is considered for normalization.')
 
             if self.results[0].reactants_conversions is not None:
                 conversions_results = []
@@ -1017,7 +1020,7 @@ class CatalyticReaction(CatalyticReaction_core, PlotSection, EntryData):
         fig1.update_yaxes(title_text="Conversion (%)")
         self.figures.append(PlotlyFigure(label='figure Conversion', figure=fig1.to_plotly_json()))
 
-        if self.results.rates is not None:
+        if self.results[0].rates is not None:
             fig = go.Figure()
             for i,c in enumerate(self.results[0].rates):
                 fig.add_trace(go.Scatter(x=x, y=self.results[0].rates[i].rate, name=self.results[0].rates[i].name))
